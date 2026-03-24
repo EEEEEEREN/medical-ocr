@@ -29,24 +29,15 @@ def index():
 
 @app.route('/ocr', methods=['POST'])
 def ocr():
-    try:
-        file = request.files.get('file')
-        if not file: return jsonify({"success": False, "error": "无图片"})
-        
-        img_64 = base64.b64encode(file.read()).decode('utf-8')
-        token = get_access_token()
-        api_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
-        
-        res = requests.post(api_url, data={"image": img_64}, headers={'content-type': 'application/x-www-form-urlencoded'})
-        result = res.json()
-        
-        if 'words_result' in result:
-            # 这里的 text 必须是动态获取的 full_text，绝不是固定字符串
-            full_text = "\n".join([item['words'] for item in result['words_result']])
-            return jsonify({"success": True, "text": full_text})
-        return jsonify({"success": False, "error": f"OCR错误: {result.get('error_msg')}"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    # ... 前面的 base64 转换和 token 获取 ...
+    res = requests.post(api_url, data={"image": img_64}, headers={'content-type': 'application/x-www-form-urlencoded'})
+    result = res.json()
+    
+    if 'words_result' in result:
+        # 必须在这里把所有行拼接起来，绝不能放固定字符串
+        full_text = "\n".join([item['words'] for item in result['words_result']])
+        return jsonify({"success": True, "text": full_text})
+    return jsonify({"success": False, "error": result.get("error_msg", "未知错误")})
 
 @app.route('/translate', methods=['POST'])
 def translate():
