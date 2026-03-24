@@ -10,7 +10,6 @@
     <style>
         body { font-family: 'Inter', 'Noto Sans SC', sans-serif; }
         .whitespace-pre-wrap { word-break: break-word; }
-        /* 隐藏滚动条但保留功能 */
         #result-content::-webkit-scrollbar { width: 4px; }
         #result-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
@@ -35,78 +34,65 @@
                     <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
                     <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                 </button>
-                <button id="output-lang-toggle" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-all">
+                <button id="output-lang-toggle" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-lg active:scale-95 transition-all">
                     <span>切换显示语言</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        
         <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-bold flex items-center gap-2">
-                    <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-                    导入病例图片
-                </h2>
-            </div>
+            <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
+                <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                导入病例图片
+            </h2>
             
-            <div id="dropzone" class="flex-1 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/10 flex flex-col items-center justify-center group">
+            <div id="dropzone" class="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/10 flex flex-col items-center justify-center group min-h-[200px]">
                 <input id="file-input" type="file" accept="image/*" class="hidden">
-                <div class="w-16 h-16 bg-blue-50 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div class="w-12 h-12 bg-blue-50 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                 </div>
-                <p class="text-gray-600 dark:text-gray-400 font-medium">支持拖拽、点击或粘贴图片</p>
-                <p class="text-xs text-gray-400 mt-2">支持 JPG, PNG, WEBP 格式</p>
-                <button id="select-file-btn" class="mt-6 px-8 py-2.5 bg-gray-900 dark:bg-blue-600 text-white rounded-xl font-medium shadow-md hover:bg-gray-800 dark:hover:bg-blue-700 transition-colors">浏览文件</button>
+                <p class="text-gray-600 dark:text-gray-400 font-medium text-sm">点击、拖拽或粘贴图片</p>
+                <button id="select-file-btn" class="mt-4 px-6 py-2 bg-gray-900 dark:bg-blue-600 text-white rounded-xl text-sm font-medium">浏览文件</button>
             </div>
 
-            <div id="preview-container" class="mt-8 hidden animate-in fade-in zoom-in duration-300">
-                <div class="relative group">
-                    <img id="preview-image" class="w-full rounded-2xl shadow-lg border dark:border-gray-600 max-h-80 object-contain bg-gray-100 dark:bg-gray-900">
-                    <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center">
-                        <span class="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-full">当前处理图片</span>
-                    </div>
-                </div>
+            <div id="preview-container" class="mt-6 hidden">
+                <img id="preview-image" class="w-full rounded-2xl shadow-md border dark:border-gray-600 max-h-64 object-contain bg-gray-50">
             </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col">
+        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col min-h-[400px]">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-lg font-bold flex items-center gap-2">
                     <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
                     提取分析结果
                 </h2>
-                <button id="copy-btn" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
+                <button id="copy-btn" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all">
                     复制内容
                 </button>
             </div>
 
-            <div id="status-bar" class="hidden p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-2xl mb-4 border border-blue-100 dark:border-blue-800/30 text-blue-600 dark:text-blue-400 text-sm font-semibold flex items-center gap-3">
-                <div class="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+            <div id="status-bar" class="hidden p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl mb-4 border border-blue-100 dark:border-blue-800/30 text-blue-600 dark:text-blue-400 text-sm flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
                 <span id="status-text">系统就绪</span>
             </div>
 
-            <div id="result-content" class="flex-1 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl p-6 overflow-y-auto border border-gray-100 dark:border-gray-800 min-h-[400px]">
-                <div class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p class="italic text-sm">暂无数据，请上传病例图片进行智能识别</p>
+            <div id="result-content" class="bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[300px]">
+                <div class="flex flex-col items-center justify-center text-gray-400 py-20">
+                    <p class="italic text-sm">等待识别结果...</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="py-6 text-center text-gray-400 dark:text-gray-600 text-xs">
-        <p>© 2026 AI Medical OCR Assistant · Powered by Tencent & Baidu API</p>
+    <footer class="py-6 text-center text-gray-400 dark:text-gray-600 text-xs mt-auto">
+        <p>© 2026 AI Medical OCR Assistant</p>
     </footer>
 
-    <script src="/static/js/script.js?v=8.0"></script>
+    <script src="/static/js/script.js?v=9.0"></script>
 </body>
 </html>
