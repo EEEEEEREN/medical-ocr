@@ -7,8 +7,7 @@ import random
 
 app = Flask(__name__)
 
-# --- 安全配置：从环境变量读取 ---
-# 在 Zeabur 面板中设置以下四个变量
+# 从环境变量读取配置，保护隐私
 AK = os.environ.get('BAIDU_OCR_AK') 
 SK = os.environ.get('BAIDU_OCR_SK')
 TRANS_APPID = os.environ.get('BAIDU_TRANS_APPID') 
@@ -20,7 +19,6 @@ def get_access_token():
     global TOKEN
     if TOKEN: return TOKEN
     if not AK or not SK: return None
-    
     url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={AK}&client_secret={SK}"
     try:
         resp = requests.post(url)
@@ -38,14 +36,14 @@ def index():
 @app.route('/ocr', methods=['POST'])
 def ocr():
     file = request.files.get('file')
-    if not file: return jsonify({"error": "未选择文件"}), 400
+    if not file: return jsonify({"error": "未收到文件"}), 400
     
     img_data = file.read()
     image_base64 = base64.b64encode(img_data).decode('utf-8')
 
     try:
         token = get_access_token()
-        if not token: return jsonify({"error": "OCR鉴权失败，请检查AK/SK"}), 500
+        if not token: return jsonify({"error": "OCR授权失败，请检查环境变量"}), 500
         
         url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
         payload = f"image={requests.utils.quote(image_base64)}"
@@ -56,7 +54,7 @@ def ocr():
         if "words_result" in result:
             texts = [item["words"] for item in result["words_result"]]
             return jsonify({"success": True, "text": "\n".join(texts)})
-        return jsonify({"error": "识别失败"}), 400
+        return jsonify({"error": "图片识别失败"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -84,9 +82,8 @@ def translate():
             return jsonify({"text": translated_text})
     except:
         pass
-    return jsonify({"text": text + "\n(翻译功能暂不可用，请检查配置)"})
+    return jsonify({"text": text + "\n(翻译功能配置有误或暂不可用)"})
 
 if __name__ == '__main__':
-    # 动态端口配置，适配 Zeabur/Render 环境
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
