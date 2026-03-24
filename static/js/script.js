@@ -1,122 +1,88 @@
-class MedicalImageRecognizer {
-    constructor() {
-        this.initElements();
-        this.initEventListeners();
-        this.originalText = ""; 
-        this.currentLang = "zh";
-        this.initTheme();
-    }
+// 全选覆盖 static/js/script.js
+const fileInput = document.getElementById('fileInput');
+const resultText = document.getElementById('resultText');
+const currentLangSpans = document.querySelectorAll('.current-lang');
+const translateBtn = document.getElementById('translateBtn');
 
-    initElements() {
-        this.dropzone = document.getElementById('dropzone');
-        this.fileInput = document.getElementById('file-input');
-        this.selectFileBtn = document.getElementById('select-file-btn');
-        this.previewContainer = document.getElementById('preview-container');
-        this.previewImage = document.getElementById('preview-image');
-        this.resultContent = document.getElementById('result-content');
-        this.statusBar = document.getElementById('status-bar');
-        this.statusText = document.getElementById('status-text');
-        this.copyBtn = document.getElementById('copy-btn');
-        this.outputLangToggle = document.getElementById('output-lang-toggle');
-        this.themeToggle = document.getElementById('theme-toggle');
-    }
+let currentOcrText = ''; // 存储动态识别出的文字
+let showingTranslated = false; // 状态标记
 
-    initEventListeners() {
-        this.selectFileBtn.onclick = () => this.fileInput.click();
-        this.fileInput.onchange = (e) => this.handleFileSelect(e.target.files[0]);
-        this.outputLangToggle.onclick = () => this.toggleLanguage();
-        this.themeToggle.onclick = () => this.toggleTheme();
-        this.copyBtn.onclick = () => this.copyResult();
-        
-        // 拖拽逻辑
-        this.dropzone.ondragover = (e) => { e.preventDefault(); this.dropzone.classList.add('drag-over'); };
-        this.dropzone.ondragleave = () => this.dropzone.classList.remove('drag-over');
-        this.dropzone.ondrop = (e) => {
-            e.preventDefault();
-            this.dropzone.classList.remove('drag-over');
-            this.handleFileSelect(e.dataTransfer.files[0]);
-        };
-    }
+// 1. 上传与识别
+fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    async handleFileSelect(file) {
-        if (!file || !file.type.startsWith('image/')) return;
-        
-        // 显示预览
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.previewImage.src = e.target.result;
-            this.previewContainer.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
+    // 清空状态和显示
+    currentOcrText = '';
+    showingTranslated = false;
+    resultText.value = '正在识别...';
+    translateBtn.innerText = '切换至英文';
 
-        // OCR 识别
-        this.statusBar.classList.remove('hidden');
-        this.statusText.textContent = '正在识别文字...';
-        
-        const formData = new FormData();
-        formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-        try {
-            const res = await fetch('/ocr', { method: 'POST', body: formData });
-            const data = await res.json();
-            if (data.success) {
-                this.originalText = data.text;
-                this.showTranslatedResult();
-            } else {
-                alert('识别失败: ' + data.error);
-            }
-        } catch (e) {
-            alert('网络错误');
-        } finally {
-            this.statusBar.classList.add('hidden');
+    try {
+        const response = await fetch('/ocr', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            currentOcrText = data.text; // 拿到真正的识别文字
+            resultText.value = data.text;
+            // 更新语言显示为中文
+            currentLangSpans.forEach(span => span.innerText = '中文');
+        } else {
+            resultText.value = 'OCR 识别失败: ' + (data.error || '未知错误');
         }
+    } catch (err) {
+        console.error('OCR请求崩溃:', err);
+        resultText.value = '请求接口崩溃，请检查Vercel Logs';
+    }
+});
+
+// 2. 翻译与切换
+translateBtn.addEventListener('click', async () => {
+    // 确保有文字可翻
+    if (!currentOcrText || currentOcrText.includes('正在识别') || currentOcrText.includes('OCR 识别失败')) {
+        return;
     }
 
-    async translate(text, targetLang) {
+    if (!showingTranslated) {
+        // 准备转英文
+        resultText.value = '正在翻译...';
+        
         try {
-            const res = await fetch('/translate', {
+            const response = await fetch('/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, target: targetLang })
+                body: JSON.stringify({
+                    text: currentOcrText, // 必须传动态 OCR 的文字
+                    target: 'en'
+                })
             });
-            const data = await res.json();
-            return data.text || text;
-        } catch (e) {
-            return text + "\n(翻译失败)";
+            const data = await response.json();
+
+            if (data.success) {
+                resultText.value = data.text; // 拿到真实的英文翻译
+                translateBtn.innerText = '切换至中文原件';
+                currentLangSpans.forEach(span => span.innerText = '英文');
+                showingTranslated = true;
+            } else {
+                resultText.value = '翻译失败: ' + (data.error || '未知错误');
+                // 自动跳回中文显示
+                resultText.value += '\n---\n已恢复原件：\n' + currentOcrText;
+            }
+        } catch (err) {
+            console.error('翻译请求崩溃:', err);
+            resultText.value = '翻译请求崩溃，请检查 Console';
         }
+    } else {
+        // 已是英文，切回中文原件
+        resultText.value = currentOcrText;
+        translateBtn.innerText = '切换至英文';
+        currentLangSpans.forEach(span => span.innerText = '中文');
+        showingTranslated = false;
     }
-
-    async toggleLanguage() {
-        this.currentLang = this.currentLang === 'zh' ? 'en' : 'zh';
-        document.getElementById('lang-text').textContent = this.currentLang === 'zh' ? '切换至英文' : '切换至中文';
-        await this.showTranslatedResult();
-    }
-
-    async showTranslatedResult() {
-        if (!this.originalText) return;
-        this.statusBar.classList.remove('hidden');
-        this.statusText.textContent = '翻译中...';
-        
-        const result = await this.translate(this.originalText, this.currentLang);
-        let formatted = result.replace(/\n/g, '<br>');
-        this.resultContent.innerHTML = `<div class="text-xs text-blue-500 mb-2 font-bold">当前显示：${this.currentLang === 'zh' ? '中文' : '英文'}</div>` + 
-                                      `<div class="leading-relaxed">${formatted}</div>`;
-        this.statusBar.classList.add('hidden');
-    }
-
-    copyResult() {
-        navigator.clipboard.writeText(this.resultContent.innerText);
-        alert('已复制到剪贴板');
-    }
-
-    toggleTheme() {
-        document.documentElement.classList.toggle('dark');
-        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-    }
-
-    initTheme() {
-        if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
-    }
-}
-
-new MedicalImageRecognizer();
+});
