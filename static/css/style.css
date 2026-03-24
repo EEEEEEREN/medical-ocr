@@ -1,0 +1,27 @@
+/* static/css/style.css */
+
+/* 针对滚动条的美化（可选） */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+/* 拖拽时的动画缩放 */
+#dropzone {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 结果框的行高优化 */
+.whitespace-pre-wrap {
+    line-height: 1.8;
+    letter-spacing: 0.02em;
+}
