@@ -5,7 +5,6 @@ from tencentcloud.tmt.v20180321 import tmt_client, models
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
-# 获取环境变量
 def get_env(key):
     return os.environ.get(key, '').strip()
 
@@ -30,14 +29,11 @@ def index():
 def ocr():
     file = request.files.get('file')
     if not file: return jsonify({"success": False, "error": "无文件"})
-    
     img_64 = base64.b64encode(file.read()).decode('utf-8')
     token = get_baidu_token()
-    if not token: return jsonify({"success": False, "error": "OCR鉴权失败"})
-
+    if not token: return jsonify({"success": False, "error": "鉴权失败"})
     api_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
     res = requests.post(api_url, data={"image": img_64}, headers={'content-type': 'application/x-www-form-urlencoded'}, timeout=15).json()
-    
     if 'words_result' in res:
         full_text = "\n".join([i['words'] for i in res['words_result']])
         return jsonify({"success": True, "text": full_text})
@@ -46,11 +42,8 @@ def ocr():
 @app.route('/translate', methods=['POST'])
 def translate():
     data = request.json
-    q = data.get('text', '')
-    target = data.get('target', 'en')
-    
+    q, target = data.get('text', ''), data.get('target', 'en')
     if not q: return jsonify({"success": False, "error": "内容为空"})
-    
     try:
         cred = credential.Credential(TENCENT_ID, TENCENT_KEY)
         client = tmt_client.TmtClient(cred, "ap-guangzhou")
