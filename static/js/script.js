@@ -16,35 +16,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
 
     // 状态管理
-    let currentFileId = '';
-    let translationCache = {}; 
+    let translationCache = { 'zh': '', 'en': '' };
+    let currentDisplayLang = ''; 
 
-    // 1. 主题初始化与反转逻辑
+    // 1. 主题切换 (白天太阳，黑夜月亮)
     function updateThemeIcons() {
         if (document.documentElement.classList.contains('dark')) {
-            // 黑夜模式：显示月亮
             themeToggleDarkIcon.classList.remove('hidden');
             themeToggleLightIcon.classList.add('hidden');
         } else {
-            // 白天模式：显示太阳
             themeToggleLightIcon.classList.remove('hidden');
             themeToggleDarkIcon.classList.add('hidden');
         }
     }
     updateThemeIcons();
-
     themeToggleBtn.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
         updateThemeIcons();
     });
 
-    // 2. 处理文件上传
+    // 2. 智能语种判定辅助函数
+    function detectLanguage(text) {
+        const englishPattern = /[a-zA-Z]/g;
+        const englishCount = (text.match(englishPattern) || []).length;
+        // 如果英文字符占比超过 40%，判定为英文
+        return (englishCount / text.length) > 0.4 ? 'en' : 'zh';
+    }
+
+    // 3. 处理文件上传 (修复首发语种存入逻辑)
     async function handleFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
 
-        translationCache = {}; 
-        currentFileId = `${file.name}_${file.size}_${file.lastModified}`;
-        langText.innerText = "切换语言";
+        translationCache = { 'zh': '', 'en': '' };
+        previewContainer.classList.add('hidden');
         
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -65,52 +69,65 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                translationCache["original"] = data.text;
+                // 【核心改进】：判定首发语言并存入对应槽位
+                const detected = detectLanguage(data.text);
+                translationCache[detected] = data.text;
+                currentDisplayLang = detected;
+                
                 updateDisplay(data.text);
-                statusText.innerText = "识别成功。";
+                statusText.innerText = `识别完成 (检测为${detected === 'zh' ? '中文' : '英文'})。`;
             } else {
-                resultContent.innerHTML = `<div class="text-red-500 p-4">错误: ${data.error}</div>`;
+                resultContent.innerHTML = `<div class="text-red-500 p-4">识别失败: ${data.error}</div>`;
             }
         } catch (err) {
             resultContent.innerHTML = '<div class="text-red-500 p-4">网络异常</div>';
         }
     }
 
-    // 3. 智能翻译逻辑 (支持双向)
+    // 4. 双向极速切换
     langToggleBtn.addEventListener('click', async () => {
-        const textToProcess = resultContent.innerText.trim();
-        if (!textToProcess || textToProcess.includes("等待识别")) return;
+        // 获取当前显示的文本 (以防万一)
+        const currentText = resultContent.innerText.trim();
+        if (!currentText || currentText.includes("等待识别")) return;
 
-        // 简单的语言判定：英文字符占比超过30%则认为当前是英文，需要译成中文
-        const englishPattern = /[a-zA-Z]/g;
-        const englishCount = (textToProcess.match(englishPattern) || []).length;
-        const isCurrentlyEnglish = (englishCount / textToProcess.length) > 0.3;
+        // 如果还没识别出任何语言，直接跳过
+        if (!currentDisplayLang) return;
+
+        // 确定目标
+        const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
+
+        // 检查缓存
+        if (translationCache[targetLang]) {
+            updateDisplay(translationCache[targetLang]);
+            currentDisplayLang = targetLang;
+            statusText.innerText = `已秒切至${targetLang === 'zh' ? '中文' : '英文'}`;
+            return;
+        }
+
+        // 缓存缺失，请求翻译
+        statusText.innerText = `正在向腾讯云请求翻译至${targetLang === 'zh' ? '中文' : '英文'}...`;
         
-        const targetLang = isCurrentlyEnglish ? 'zh' : 'en';
-        const cacheKey = `cache_${targetLang}`;
-
-        if (translationCache[cacheKey]) {
-            updateDisplay(translationCache[cacheKey]);
-            statusText.innerText = `已切换至${isCurrentlyEnglish ? '中文' : '英文'}`;
-        } else {
-            statusText.innerText = `正在翻译至${isCurrentlyEnglish ? '中文' : '英文'}...`;
-            try {
-                const response = await fetch('/translate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: textToProcess, target: targetLang })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    translationCache[cacheKey] = data.text;
-                    updateDisplay(data.text);
-                    statusText.innerText = "翻译完成。";
-                } else {
-                    alert("翻译失败: " + data.error);
-                }
-            } catch (err) {
-                alert("翻译接口异常");
+        try {
+            const response = await fetch('/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    text: currentText, 
+                    target: targetLang 
+                })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                translationCache[targetLang] = data.text; // 补全缓存
+                updateDisplay(data.text);
+                currentDisplayLang = targetLang;
+                statusText.innerText = "翻译完成并已缓存。";
+            } else {
+                alert("翻译失败: " + data.error);
             }
+        } catch (err) {
+            alert("接口异常");
         }
     });
 
@@ -118,11 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
         resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 leading-relaxed">${text}</pre>`;
     }
 
-    // 交互绑定
+    // 基础绑定
     selectFileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-blue-50'); });
-    dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('bg-blue-50'); });
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-blue-50/50'); });
+    dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('bg-blue-50/50'); });
     dropzone.addEventListener('drop', (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(resultContent.innerText).then(() => {
