@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 界面元素
     const fileInput = document.getElementById('file-input');
     const selectFileBtn = document.getElementById('select-file-btn');
     const dropzone = document.getElementById('dropzone');
@@ -13,12 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+    const resultCard = document.getElementById('result-card'); // 新增卡片引用
 
-    // 状态管理
     let translationCache = { 'zh': '', 'en': '' };
     let currentDisplayLang = ''; 
 
-    // 1. 主题切换 (白天太阳，黑夜月亮)
     function updateThemeIcons() {
         if (document.documentElement.classList.contains('dark')) {
             themeToggleDarkIcon.classList.remove('hidden');
@@ -34,23 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThemeIcons();
     });
 
-    // 2. 辅助：语言判定
     function detectLanguage(text) {
         const englishPattern = /[a-zA-Z]/g;
         const englishCount = (text.match(englishPattern) || []).length;
-        // 英文字符占比超过 40% 判定为英文
         return (englishCount / text.length) > 0.4 ? 'en' : 'zh';
     }
 
-    // 3. 核心：处理图片文件（统一入口）
     async function handleFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
 
-        // 重置状态
         translationCache = { 'zh': '', 'en': '' };
         currentDisplayLang = '';
         
-        // 预览
         const reader = new FileReader();
         reader.onload = (e) => {
             previewImage.src = e.target.result;
@@ -58,8 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        // UI反馈
-        resultContent.innerHTML = '<div class="text-blue-500 italic text-center py-20 flex flex-col items-center gap-3"><div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>正在识别病例文字...</div>';
+        resultContent.innerHTML = '<div class="flex flex-col items-center gap-3 py-10"><div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>正在识别...</div>';
         statusBar.classList.remove('hidden');
         statusText.innerText = "正在请求 OCR 服务...";
 
@@ -74,9 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detected = detectLanguage(data.text);
                 translationCache[detected] = data.text;
                 currentDisplayLang = detected;
-                
                 updateDisplay(data.text);
-                statusText.innerText = `识别完成（检测为${detected === 'zh' ? '中文' : '英文'}）。`;
+                statusText.innerText = `识别完成（${detected === 'zh' ? '中文' : '英文'}）。`;
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4">识别失败: ${data.error}</div>`;
             }
@@ -85,63 +76,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 4. 新增：剪贴板监听
     document.addEventListener('paste', (event) => {
         const items = (event.clipboardData || event.originalEvent.clipboardData).items;
         for (let index in items) {
             const item = items[index];
             if (item.kind === 'file' && item.type.startsWith('image/')) {
-                const blob = item.getAsFile();
-                handleFile(blob);
+                handleFile(item.getAsFile());
             }
         }
     });
 
-    // 5. 切换语言逻辑
     langToggleBtn.addEventListener('click', async () => {
         if (!currentDisplayLang) return;
-
         const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
 
-        // 命中缓存直接切换
         if (translationCache[targetLang]) {
             updateDisplay(translationCache[targetLang]);
             currentDisplayLang = targetLang;
-            statusText.innerText = `已切换至${targetLang === 'zh' ? '中文' : '英文'}`;
+            statusText.innerText = `已显示${targetLang === 'zh' ? '中文' : '英文'}`;
             return;
         }
 
-        // 无缓存则请求翻译
         statusText.innerText = `正在翻译至${targetLang === 'zh' ? '中文' : '英文'}...`;
         try {
             const response = await fetch('/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    text: translationCache[currentDisplayLang], 
-                    target: targetLang 
-                })
+                body: JSON.stringify({ text: translationCache[currentDisplayLang], target: targetLang })
             });
             const data = await response.json();
-            
             if (data.success) {
                 translationCache[targetLang] = data.text;
                 updateDisplay(data.text);
                 currentDisplayLang = targetLang;
-                statusText.innerText = "翻译完成并已存入缓存。";
-            } else {
-                alert("翻译失败: " + data.error);
+                statusText.innerText = "翻译完成。";
             }
         } catch (err) {
-            alert("接口异常");
+            alert("翻译接口异常");
         }
     });
 
     function updateDisplay(text) {
-        resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 leading-relaxed">${text}</pre>`;
+        // 1. 解除父容器固定高度限制，允许长内容撑开
+        resultCard.classList.remove('h-[500px]');
+        resultCard.classList.add('min-h-[500px]');
+        
+        // 2. 移除居中布局，确保文字从顶部开始显示
+        resultContent.classList.remove('items-center', 'justify-center');
+        resultContent.classList.add('items-start', 'justify-start');
+        
+        // 3. 填充内容
+        resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed">${text}</pre>`;
     }
 
-    // 事件绑定
     selectFileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
     dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-blue-50/50'); });
@@ -149,9 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
     dropzone.addEventListener('drop', (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(resultContent.innerText).then(() => {
-            const oldText = copyBtn.innerText;
+            const old = copyBtn.innerText;
             copyBtn.innerText = "✅ 已复制";
-            setTimeout(() => copyBtn.innerText = oldText, 1500);
+            setTimeout(() => copyBtn.innerText = old, 1500);
         });
     });
 });
