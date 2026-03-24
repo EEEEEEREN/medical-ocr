@@ -12,11 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
-    const resultCard = document.getElementById('result-card'); // 新增卡片引用
+    const resultCard = document.getElementById('result-card');
 
     let translationCache = { 'zh': '', 'en': '' };
     let currentDisplayLang = ''; 
 
+    // 主题切换
     function updateThemeIcons() {
         if (document.documentElement.classList.contains('dark')) {
             themeToggleDarkIcon.classList.remove('hidden');
@@ -40,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
-
         translationCache = { 'zh': '', 'en': '' };
         currentDisplayLang = '';
         
@@ -61,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/ocr', { method: 'POST', body: formData });
             const data = await response.json();
-
             if (data.success) {
                 const detected = detectLanguage(data.text);
                 translationCache[detected] = data.text;
@@ -76,27 +75,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.addEventListener('paste', (event) => {
-        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-        for (let index in items) {
-            const item = items[index];
-            if (item.kind === 'file' && item.type.startsWith('image/')) {
-                handleFile(item.getAsFile());
-            }
-        }
-    });
-
+    // 语言切换
     langToggleBtn.addEventListener('click', async () => {
         if (!currentDisplayLang) return;
         const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
-
         if (translationCache[targetLang]) {
             updateDisplay(translationCache[targetLang]);
             currentDisplayLang = targetLang;
             statusText.innerText = `已显示${targetLang === 'zh' ? '中文' : '英文'}`;
             return;
         }
-
         statusText.innerText = `正在翻译至${targetLang === 'zh' ? '中文' : '英文'}...`;
         try {
             const response = await fetch('/translate', {
@@ -111,29 +99,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentDisplayLang = targetLang;
                 statusText.innerText = "翻译完成。";
             }
-        } catch (err) {
-            alert("翻译接口异常");
-        }
+        } catch (err) { alert("翻译接口异常"); }
     });
 
     function updateDisplay(text) {
-        // 1. 解除父容器固定高度限制，允许长内容撑开
         resultCard.classList.remove('h-[500px]');
         resultCard.classList.add('min-h-[500px]');
-        
-        // 2. 移除居中布局，确保文字从顶部开始显示
         resultContent.classList.remove('items-center', 'justify-center');
         resultContent.classList.add('items-start', 'justify-start');
-        
-        // 3. 填充内容
         resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed">${text}</pre>`;
     }
 
-    selectFileBtn.addEventListener('click', () => fileInput.click());
+    // --- 交互事件绑定 ---
+
+    // 【新增】：点击整个虚线框都能打开文件夹
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    selectFileBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 防止触发 dropzone 的点击事件导致打开两次
+        fileInput.click();
+    });
+
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-blue-50/50'); });
-    dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('bg-blue-50/50'); });
-    dropzone.addEventListener('drop', (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
+    
+    // 拖拽逻辑
+    dropzone.addEventListener('dragover', (e) => { 
+        e.preventDefault(); 
+        dropzone.classList.add('border-blue-500', 'bg-blue-50/50'); 
+    });
+    dropzone.addEventListener('dragleave', () => { 
+        dropzone.classList.remove('border-blue-500', 'bg-blue-50/50'); 
+    });
+    dropzone.addEventListener('drop', (e) => { 
+        e.preventDefault(); 
+        dropzone.classList.remove('border-blue-500', 'bg-blue-50/50');
+        handleFile(e.dataTransfer.files[0]); 
+    });
+
+    // 粘贴逻辑
+    document.addEventListener('paste', (event) => {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                handleFile(item.getAsFile());
+            }
+        }
+    });
+
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(resultContent.innerText).then(() => {
             const old = copyBtn.innerText;
