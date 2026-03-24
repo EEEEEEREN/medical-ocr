@@ -12,6 +12,8 @@
         .whitespace-pre-wrap { word-break: break-word; }
         #result-content::-webkit-scrollbar { width: 4px; }
         #result-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        /* 增加平滑过渡效果 */
+        #preview-container, #status-bar, #result-content { transition: all 0.3s ease-out; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300">
@@ -43,29 +45,29 @@
 
     <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         
-        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col">
+        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col min-h-[300px]">
             <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
                 <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>
                 导入病例图片
             </h2>
             
-            <div id="dropzone" class="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/10 flex flex-col items-center justify-center group min-h-[200px]">
+            <div id="dropzone" class="flex-1 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/10 flex flex-col items-center justify-center group">
                 <input id="file-input" type="file" accept="image/*" class="hidden">
-                <div class="w-12 h-12 bg-blue-50 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-blue-600">
+                <div class="w-12 h-12 bg-blue-50 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-blue-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                 </div>
-                <p class="text-gray-600 dark:text-gray-400 font-medium text-sm">点击、拖拽或粘贴图片</p>
-                <button id="select-file-btn" class="mt-4 px-6 py-2 bg-gray-900 dark:bg-blue-600 text-white rounded-xl text-sm font-medium">浏览文件</button>
+                <p class="text-gray-600 dark:text-gray-400 font-medium text-xs">点击、拖拽或粘贴图片</p>
+                <button id="select-file-btn" class="mt-4 px-5 py-1.5 bg-gray-900 dark:bg-blue-600 text-white rounded-lg text-xs font-medium">浏览文件</button>
             </div>
 
             <div id="preview-container" class="mt-6 hidden">
-                <img id="preview-image" class="w-full rounded-2xl shadow-md border dark:border-gray-600 max-h-64 object-contain bg-gray-50">
+                <img id="preview-image" class="w-full rounded-xl shadow-md border dark:border-gray-600 max-h-56 object-contain bg-gray-50">
             </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col min-h-[400px]">
+        <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col min-h-[300px]">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-lg font-bold flex items-center gap-2">
                     <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
@@ -81,10 +83,8 @@
                 <span id="status-text">系统就绪</span>
             </div>
 
-            <div id="result-content" class="bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[300px]">
-                <div class="flex flex-col items-center justify-center text-gray-400 py-20">
-                    <p class="italic text-sm">等待识别结果...</p>
-                </div>
+            <div id="result-content" class="flex-1 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center">
+                <p class="text-gray-400 italic text-sm text-center py-20">等待识别结果...</p>
             </div>
         </div>
     </main>
@@ -93,6 +93,6 @@
         <p>© 2026 AI Medical OCR Assistant</p>
     </footer>
 
-    <script src="/static/js/script.js?v=9.0"></script>
+    <script src="/static/js/script.js?v=10.0"></script>
 </body>
 </html>
