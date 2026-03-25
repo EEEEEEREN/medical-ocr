@@ -11,15 +11,7 @@
       "destination": "/static/$1"
     },
     {
-      "source": "/ocr",
-      "destination": "/api/app"
-    },
-    {
-      "source": "/translate",
-      "destination": "/api/app"
-    },
-    {
-      "source": "/",
+      "source": "/(.*)",
       "destination": "/api/app"
     }
   ]
