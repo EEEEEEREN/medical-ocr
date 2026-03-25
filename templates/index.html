@@ -61,7 +61,7 @@
             </div>
 
             <div id="preview-container" class="mt-4 hidden animate-in slide-in-from-bottom-2 duration-300">
-                <img id="preview-image" class="w-full rounded-xl border border-gray-100 dark:border-gray-700 max-h-40 object-contain bg-gray-100 dark:bg-gray-900 shadow-sm">
+                <img id="preview-image" class="w-full rounded-xl border border-gray-100 dark:border-gray-700 max-h-32 object-contain bg-gray-100 dark:bg-gray-900 shadow-sm transition-colors">
             </div>
         </div>
 
@@ -79,15 +79,20 @@
             </div>
 
             <div id="result-content" class="flex-1 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 flex items-center justify-center transition-all overflow-y-auto">
-                <p class="text-gray-400 dark:text-gray-500 italic text-sm text-center py-10">等待识别结果...</p>
+                <div class="text-center px-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p class="text-gray-400 dark:text-gray-500 italic text-sm">暂无识别数据，请先在左侧上传病例</p>
+                </div>
             </div>
         </div>
     </main>
 
     <footer class="py-6 text-center text-gray-400 dark:text-gray-600 text-xs mt-auto">
-        <p>© 2026 AI Medical OCR Assistant · v13.0</p>
+        <p>© 2026 AI Medical OCR Assistant · v13.1</p>
     </footer>
 
-    <script src="/static/js/script.js?v=13.0"></script>
+    <script src="/static/js/script.js?v=13.1"></script>
 </body>
 </html>
