@@ -1,49 +1,53 @@
 import os
 import uuid
+import pg8000
 from flask import Flask, render_template, request, jsonify
 from vercel_blob import put
-
-# 即使 requirements 里有 pg8000，我们也这样引入，
-# 因为 vercel_postgres 内部会自动根据环境选择最合适的驱动。
-try:
-    from vercel_postgres import db
-except ImportError:
-    # 如果还是找不到，我们可以通过这个报错在 Logs 里抓到它
-    print("Database library import failed!")
 from aip import AipOcr
 from tencentcloud.common import credential
 from tencentcloud.tmt.v20180321 import tmt_client, models
 
 app = Flask(__name__)
 
-# --- 1. 插件初始化 (从环境变量读取) ---
-# 百度 OCR (确保 Vercel 已配置 BAIDU_APP_ID, BAIDU_OCR_AK, BAIDU_OCR_SK)
+# --- 1. 插件初始化 ---
+# 百度 OCR
 baidu_client = AipOcr(
     os.environ.get('BAIDU_APP_ID'),
     os.environ.get('BAIDU_OCR_AK'),
     os.environ.get('BAIDU_OCR_SK')
 )
 
-# 腾讯翻译 (确保 Vercel 已配置 TENCENT_SECRET_ID, TENCENT_SECRET_KEY)
+# 腾讯翻译
 tmt_cred = credential.Credential(
     os.environ.get('TENCENT_SECRET_ID'),
     os.environ.get('TENCENT_SECRET_KEY')
 )
 tmt_client_inst = tmt_client.TmtClient(tmt_cred, "ap-guangzhou")
 
-# --- 2. 数据库增强逻辑 ---
-def ensure_table_exists(cur):
-    """强制检查并创建表，防止 Neon 后台看不到表"""
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS ocr_records (
-            id SERIAL PRIMARY KEY,
-            image_url TEXT,
-            filename TEXT,
-            result_zh TEXT,
-            result_en TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+# --- 2. 数据库手动连接函数 ---
+def get_db_conn():
+    """直接使用 POSTGRES_URL 建立连接"""
+    # Vercel 的 URL 通常以 postgresql:// 开头，pg8000 完美支持
+    return pg8000.connect(dsn=os.environ.get('POSTGRES_URL'))
+
+def ensure_table_exists():
+    """确保表存在"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ocr_records (
+                id SERIAL PRIMARY KEY,
+                image_url TEXT,
+                filename TEXT,
+                result_zh TEXT,
+                result_en TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+    finally:
+        conn.close()
 
 @app.route('/')
 def index():
@@ -52,15 +56,13 @@ def index():
 @app.route('/ocr', methods=['POST'])
 def ocr_handler():
     file = request.files.get('file')
-    if not file: 
-        return jsonify({"success": False, "error": "未收到文件"})
+    if not file: return jsonify({"success": False, "error": "未选择文件"})
     
     img_data = file.read()
     filename = file.filename
 
     try:
         # A. 存图到 Vercel Blob
-        # 自动读取 BLOB_READ_WRITE_TOKEN
         new_filename = f"medical-ocr/{uuid.uuid4()}-{filename}"
         blob_res = put(new_filename, img_data, {"access": "public"})
         blob_url = blob_res['url']
@@ -70,15 +72,19 @@ def ocr_handler():
         lines = [item['words'] for item in ocr_res.get('words_result', [])]
         ocr_text = "\n".join(lines)
 
-        # C. 存入 Postgres 数据库 (带自动建表和提交)
-        with db.cursor() as cur:
-            ensure_table_exists(cur)  # 确保表存在
+        # C. 存入 Postgres (手动连接模式)
+        ensure_table_exists() # 每次写入前确保表在
+        conn = get_db_conn()
+        try:
+            cur = conn.cursor()
             cur.execute(
                 "INSERT INTO ocr_records (image_url, filename, result_zh) VALUES (%s, %s, %s) RETURNING id",
                 (blob_url, filename, ocr_text)
             )
             record_id = cur.fetchone()[0]
-        db.commit() # 必须提交，否则 Neon 后台看不到数据
+            conn.commit()
+        finally:
+            conn.close()
 
         return jsonify({
             "success": True,
@@ -87,7 +93,6 @@ def ocr_handler():
             "record_id": record_id
         })
     except Exception as e:
-        print(f"Server Error: {str(e)}") # 在 Vercel Logs 中可以查看
         return jsonify({"success": False, "error": f"服务器错误: {str(e)}"})
 
 @app.route('/translate', methods=['POST'])
@@ -96,9 +101,6 @@ def translate_handler():
     text = data.get('text')
     record_id = data.get('record_id')
     target = data.get('target', 'en')
-
-    if not text:
-        return jsonify({"success": False, "error": "无内容待翻译"})
 
     try:
         req = models.TextTranslateRequest()
@@ -110,18 +112,20 @@ def translate_handler():
         resp = tmt_client_inst.TextTranslate(req)
         trans_text = resp.TargetText
 
-        # 更新数据库里的对应记录
+        # 更新数据库
         if record_id:
-            field = "result_en" if target == "en" else "result_zh"
-            with db.cursor() as cur:
-                ensure_table_exists(cur)
+            conn = get_db_conn()
+            try:
+                cur = conn.cursor()
+                field = "result_en" if target == "en" else "result_zh"
                 cur.execute(f"UPDATE ocr_records SET {field} = %s WHERE id = %s", (trans_text, record_id))
-            db.commit()
+                conn.commit()
+            finally:
+                conn.close()
 
         return jsonify({"success": True, "text": trans_text})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
 if __name__ == '__main__':
-    # 本地运行时也会自动创建表
     app.run(debug=True)
