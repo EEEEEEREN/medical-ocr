@@ -1,5 +1,9 @@
-Flask
-psycopg2-binary
-vercel-blob
-baidu-aip
+flask
+requests
+gunicorn
+flask-cors
 tencentcloud-sdk-python
+vercel-blob
+vercel-postgres
+baidu-aip
+python-dotenv
