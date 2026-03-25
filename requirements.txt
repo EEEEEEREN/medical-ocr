@@ -1,9 +1,2 @@
-flask
+Flask
 requests
-gunicorn
-flask-cors
-tencentcloud-sdk-python
-vercel-blob
-vercel-postgres
-baidu-aip
-python-dotenv
