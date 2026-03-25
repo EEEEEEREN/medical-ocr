@@ -4,5 +4,7 @@ flask-cors
 tencentcloud-sdk-python
 vercel-blob
 pg8000
+psycopg2-binary
+vercel-postgres
 baidu-aip
 python-dotenv
