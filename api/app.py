@@ -1,9 +1,15 @@
 import os
 import uuid
-import pg8000  # 新增这一行，确保驱动被加载
 from flask import Flask, render_template, request, jsonify
 from vercel_blob import put
-from vercel_postgres import db  # 这个引入保留，它会配合 pg8000 工作
+
+# 即使 requirements 里有 pg8000，我们也这样引入，
+# 因为 vercel_postgres 内部会自动根据环境选择最合适的驱动。
+try:
+    from vercel_postgres import db
+except ImportError:
+    # 如果还是找不到，我们可以通过这个报错在 Logs 里抓到它
+    print("Database library import failed!")
 from aip import AipOcr
 from tencentcloud.common import credential
 from tencentcloud.tmt.v20180321 import tmt_client, models
