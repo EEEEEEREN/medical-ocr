@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "api/app.py",
@@ -7,6 +6,13 @@
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/app" }
+    {
+      "source": "/static/(.*)",
+      "destination": "/static/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api/app.py"
+    }
   ]
 }
