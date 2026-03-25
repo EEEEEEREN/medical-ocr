@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/app.py",
@@ -9,6 +10,14 @@
     {
       "source": "/static/(.*)",
       "destination": "/static/$1"
+    },
+    {
+      "source": "/ocr",
+      "destination": "/api/app"
+    },
+    {
+      "source": "/translate",
+      "destination": "/api/app"
     },
     {
       "source": "/(.*)",
