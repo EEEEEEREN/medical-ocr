@@ -1,5 +1,6 @@
-Flask
+flask
 requests
+gunicorn
 flask-cors
 tencentcloud-sdk-python
 vercel-blob
