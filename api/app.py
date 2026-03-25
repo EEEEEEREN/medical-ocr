@@ -1,8 +1,9 @@
 import os
 import uuid
+import pg8000  # 新增这一行，确保驱动被加载
 from flask import Flask, render_template, request, jsonify
 from vercel_blob import put
-from vercel_postgres import db
+from vercel_postgres import db  # 这个引入保留，它会配合 pg8000 工作
 from aip import AipOcr
 from tencentcloud.common import credential
 from tencentcloud.tmt.v20180321 import tmt_client, models
