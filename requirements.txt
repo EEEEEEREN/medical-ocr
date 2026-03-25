@@ -1,2 +1,5 @@
 Flask
-requests
+psycopg2-binary
+vercel-blob
+baidu-aip
+tencentcloud-sdk-python
