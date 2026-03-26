@@ -35,67 +35,9 @@ class MedicalRecord(db.Model):
     language = db.Column(db.String(10), default='zh')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "filename": self.filename,
-            "file_url": self.file_url,
-            "ocr_text": self.ocr_text,
-            "language": self.language,
-            "created_at": self.created_at.isoformat() if self.created_at else None
-        }
-
-# 首次部署自动创建表
+# 初始化表结构（如果不存在）
 with app.app_context():
     db.create_all()
-
-# ==================== 工具函数 ====================
-def get_baidu_token():
-    if not BAIDU_AK or not BAIDU_SK:
-        return None
-    url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={BAIDU_AK}&client_secret={BAIDU_SK}"
-    try:
-        import requests
-        res = requests.post(url, timeout=10).json()
-        return res.get("access_token")
-    except:
-        return None
-
-def upload_to_blob(file, filename):
-    """上传到 Vercel Blob - 修复版（去掉不支持的 'access' 参数）"""
-    try:
-        ext = os.path.splitext(filename)[1].lower() or '.jpg'
-        unique_name = f"medical/{datetime.utcnow().strftime('%Y%m%d')}/{uuid.uuid4().hex[:16]}{ext}"
-        
-        file.seek(0)
-        file_bytes = file.read()
-
-        print(f"📤 开始上传 Blob: {unique_name} | 大小: {len(file_bytes)} bytes")
-
-        # 关键修复：Python vercel_blob.put 不支持 'access' 参数，使用最简调用
-        result = vercel_blob.put(unique_name, file_bytes)
-
-        print(f"📥 vercel_blob.put 返回值类型: {type(result)}")
-        print(f"📥 返回内容: {result}")
-
-        # 处理返回值
-        if isinstance(result, dict):
-            url = result.get('url') or result.get('downloadUrl') or str(result)
-        else:
-            url = str(result)
-
-        if url and ('http' in url.lower() or url.startswith('/')):
-            print(f"✅ Blob 上传成功！URL: {url}")
-            return url
-        else:
-            print(f"⚠️ 返回内容不是有效 URL: {url}")
-            return None
-
-    except Exception as e:
-        print(f"❌ Blob 上传异常: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-        return None
 
 # ==================== 路由 ====================
 @app.route('/')
@@ -104,57 +46,54 @@ def index():
 
 @app.route('/ocr', methods=['POST'])
 def ocr():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"success": False, "error": "无文件"})
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "没有找到文件"})
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "error": "文件名为空"})
 
-    original_filename = file.filename or "unknown_file"
-    file_data = file.read()   # 用于 OCR
+    try:
+        # 1. 存入 Vercel Blob
+        file_content = file.read()
+        blob_name = f"medical_uploads/{uuid.uuid4().hex}_{file.filename}"
+        blob_info = vercel_blob.put(blob_name, file_content, options={"access": "public"})
+        file_url = blob_info.get("url")
 
-    # 1. 上传到 Vercel Blob
-    file.seek(0)
-    file_url = upload_to_blob(file, original_filename)
+        # 2. 调用百度 OCR
+        try:
+            from aip import AipOcr
+            client = AipOcr(os.environ.get('BAIDU_APP_ID', '').strip(), BAIDU_AK, BAIDU_SK)
+            res = client.basicGeneral(file_content)
+            
+            if "words_result" in res:
+                detected_text = "\n".join([w["words"] for w in res["words_result"]])
+                detected_lang = "zh" # 默认假设中文，后续可根据需求扩展语种检测
+                
+                # 3. 存入数据库
+                record = MedicalRecord(
+                    filename=file.filename,
+                    file_url=file_url,
+                    ocr_text=detected_text,
+                    language=detected_lang
+                )
+                db.session.add(record)
+                db.session.commit()
 
-    # 2. Baidu OCR 识别
-    img_64 = base64.b64encode(file_data).decode('utf-8')
-    token = get_baidu_token()
-    if not token:
-        return jsonify({"success": False, "error": "Baidu OCR 鉴权失败"})
+                return jsonify({
+                    "success": True, 
+                    "text": detected_text, 
+                    "file_url": file_url,
+                    "record_id": record.id,
+                    "language": detected_lang
+                })
+            else:
+                return jsonify({"success": False, "error": res.get("error_msg", "识别失败")})
+        except Exception as e:
+            return jsonify({"success": False, "error": f"OCR调用失败: {str(e)}"})
 
-    import requests
-    api_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
-    res = requests.post(
-        api_url,
-        data={"image": img_64},
-        headers={'content-type': 'application/x-www-form-urlencoded'},
-        timeout=20
-    ).json()
-
-    if 'words_result' in res:
-        full_text = "\n".join([item.get('words', '') for item in res.get('words_result', [])])
-        
-        # 简单语种检测
-        detected_lang = 'en' if full_text and (sum(1 for c in full_text if c.isascii()) / len(full_text) > 0.4) else 'zh'
-
-        # 3. 保存到 Neon Postgres（即使 Blob 失败也保存文字）
-        record = MedicalRecord(
-            filename=original_filename,
-            file_url=file_url,
-            ocr_text=full_text,
-            language=detected_lang
-        )
-        db.session.add(record)
-        db.session.commit()
-
-        return jsonify({
-            "success": True,
-            "text": full_text,
-            "file_url": file_url,
-            "record_id": record.id,
-            "language": detected_lang
-        })
-
-    return jsonify({"success": False, "error": res.get("error_msg", "识别失败")})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"文件处理失败: {str(e)}"})
 
 @app.route('/translate', methods=['POST'])
 def translate():
@@ -179,7 +118,6 @@ def translate():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
-# 查看历史记录（调试用）
 @app.route('/history', methods=['GET'])
 def get_history():
     try:
@@ -187,10 +125,29 @@ def get_history():
         return jsonify({
             "success": True,
             "count": len(records),
-            "records": [r.to_dict() for r in records]
+            "records": [{
+                "id": r.id,
+                "filename": r.filename,
+                "file_url": r.file_url,
+                "ocr_text": r.ocr_text,
+                "created_at": r.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            } for r in records]
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# 【新增】删除历史记录接口
+@app.route('/delete/<int:record_id>', methods=['DELETE'])
+def delete_record(record_id):
+    try:
+        record = MedicalRecord.query.get(record_id)
+        if not record:
+            return jsonify({"success": False, "error": "记录不存在"})
+        
+        db.session.delete(record)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+app = app
