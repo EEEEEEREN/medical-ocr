@@ -1,51 +1,49 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 元素获取
     const fileInput = document.getElementById('file-input');
     const selectFileBtn = document.getElementById('select-file-btn');
     const dropzone = document.getElementById('dropzone');
-    const resultContent = document.getElementById('result-content');
     const previewContainer = document.getElementById('preview-container');
     const previewImage = document.getElementById('preview-image');
-    const themeToggle = document.getElementById('theme-toggle');
+    const resultContent = document.getElementById('result-content');
     const langToggleBtn = document.getElementById('output-lang-toggle');
     const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
     const copyBtn = document.getElementById('copy-btn');
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+    const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+    const resultCard = document.getElementById('result-card');
 
-    // 状态管理
     let translationCache = { 'zh': '', 'en': '' };
-    let currentLang = 'zh';
+    let currentDisplayLang = '';
+    let currentFileUrl = '';
 
-    // 1. 修复上传按钮：直接绑定点击事件并阻止冒泡
-    selectFileBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fileInput.click();
-    });
-
-    dropzone.addEventListener('click', () => {
-        fileInput.click();
-    });
-
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-            handleUpload(e.target.files[0]);
+    // 主题切换
+    function updateThemeIcons() {
+        if (document.documentElement.classList.contains('dark')) {
+            themeToggleDarkIcon.classList.remove('hidden');
+            themeToggleLightIcon.classList.add('hidden');
+        } else {
+            themeToggleLightIcon.classList.remove('hidden');
+            themeToggleDarkIcon.classList.add('hidden');
         }
+    }
+    updateThemeIcons();
+
+    themeToggleBtn.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        updateThemeIcons();
     });
 
-    // 2. 主题切换逻辑
-    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-    }
+    // ==================== 核心：处理文件上传 ====================
+    async function handleFile(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        
+        translationCache = { 'zh': '', 'en': '' };
+        currentDisplayLang = '';
+        currentFileUrl = '';
 
-    themeToggle.onclick = () => {
-        const isDark = document.documentElement.classList.toggle('dark');
-        localStorage.theme = isDark ? 'dark' : 'light';
-    };
-
-    // 3. 执行上传与识别
-    async function handleUpload(file) {
-        // 图片预览
+        // 预览图片
         const reader = new FileReader();
         reader.onload = (e) => {
             previewImage.src = e.target.result;
@@ -53,134 +51,199 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        // UI 状态
+        // 加载动画
+        resultContent.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full w-full gap-4 py-10">
+                <div class="relative">
+                    <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
+                </div>
+                <div class="text-center">
+                    <p class="text-blue-600 dark:text-blue-400 font-medium animate-pulse">AI 正在深度解析中...</p>
+                    <p class="text-xs text-gray-400 mt-1">预计需要 3-5 秒</p>
+                </div>
+            </div>`;
+
         statusBar.classList.remove('hidden');
-        resultContent.innerText = "AI 正在解析图片文字，请稍候...";
-        translationCache = { 'zh': '', 'en': '' };
+        statusText.innerText = "正在调用 OCR 服务...";
 
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            const res = await fetch('/ocr', { method: 'POST', body: formData });
-            const data = await res.json();
+            const response = await fetch('/ocr', { method: 'POST', body: formData });
+            const data = await response.json();
+
             if (data.success) {
-                translationCache['zh'] = data.text;
-                currentLang = 'zh';
-                resultContent.innerText = data.text;
-                loadHistory(); // 刷新右侧历史
+                const detected = data.language || 
+                    ((data.text.match(/[a-zA-Z]/g) || []).length / (data.text.length || 1) > 0.4 ? 'en' : 'zh');
+                
+                translationCache[detected] = data.text;
+                currentDisplayLang = detected;
+                currentFileUrl = data.file_url || '';
+
+                updateDisplay(data.text);
+
+                // 显示保存成功提示 + 原图链接
+                let saveMsg = '✅ 已成功识别并保存到数据库';
+                if (currentFileUrl) {
+                    saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400 hover:text-blue-700">查看原图</a>`;
+                }
+                statusText.innerHTML = saveMsg;
+
+                // 自动刷新历史记录
+                loadHistory();
+
             } else {
-                resultContent.innerText = "识别失败: " + data.error;
+                resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
+                statusText.innerText = "识别失败";
             }
-        } catch (e) {
-            resultContent.innerText = "网络连接失败，请重试";
-        } finally {
-            statusBar.classList.add('hidden');
+        } catch (err) {
+            resultContent.innerHTML = '<div class="text-red-500 p-4 italic">网络连接失败</div>';
+            statusText.innerText = "网络错误";
         }
     }
 
-    // 4. 切换显示语言 (恢复原始逻辑)
-    langToggleBtn.onclick = async () => {
-        if (!translationCache['zh']) {
-            alert("请先上传病例图片进行识别");
-            return;
-        }
+    function updateDisplay(text) {
+        resultCard.classList.replace('h-[500px]', 'min-h-[500px]');
+        resultContent.classList.remove('items-center', 'justify-center');
+        resultContent.classList.add('items-start', 'justify-start');
+        resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed text-sm lg:text-base p-2">${text}</pre>`;
+    }
 
-        if (currentLang === 'zh') {
-            // 如果没翻译过，则调用后端翻译
-            if (!translationCache['en']) {
-                statusBar.classList.remove('hidden');
-                statusBar.innerText = "正在切换显示语言为英文...";
-                try {
-                    const res = await fetch('/translate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: translationCache['zh'], target: 'en' })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        translationCache['en'] = data.text;
-                    }
-                } catch (e) {
-                    alert("语言切换失败，请检查网络");
-                } finally {
-                    statusBar.classList.add('hidden');
-                    statusBar.innerText = "🚀 AI 正在处理您的医疗文档..."; // 还原文字
-                }
-            }
-            if (translationCache['en']) {
-                resultContent.innerText = translationCache['en'];
-                currentLang = 'en';
-            }
-        } else {
-            // 切回中文
-            resultContent.innerText = translationCache['zh'];
-            currentLang = 'zh';
-        }
-    };
-
-    // 5. 复制功能
-    copyBtn.onclick = () => {
-        const text = resultContent.innerText;
-        if (!text || text.includes("等待上传")) return;
-        navigator.clipboard.writeText(text).then(() => {
-            const originalText = copyBtn.innerText;
-            copyBtn.innerText = "已复制 √";
-            setTimeout(() => copyBtn.innerText = originalText, 1500);
-        });
-    };
-
-    // 6. 历史记录展示与删除
+    // ==================== 历史记录功能 ====================
     async function loadHistory() {
         const historyList = document.getElementById('history-list');
         try {
             const res = await fetch('/history');
             const data = await res.json();
-            if (data.success) {
-                if (data.records.length === 0) {
-                    historyList.innerHTML = '<p class="text-center text-xs text-gray-400 mt-10">暂无历史记录</p>';
-                    return;
-                }
-                historyList.innerHTML = data.records.map(rec => `
-                    <div class="history-card group relative p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-transparent hover:border-blue-400 cursor-pointer transition-all" onclick="viewHistory('${encodeURIComponent(rec.ocr_text)}')">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">${rec.created_at.split('T')[0]}</span>
-                            <button onclick="deleteRecord(event, ${rec.id})" class="delete-btn opacity-0 text-red-400 hover:text-red-600 transition-opacity p-1">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
-                        </div>
-                        <p class="text-xs font-bold truncate text-gray-700 dark:text-gray-300">${rec.filename}</p>
-                    </div>
-                `).join('');
+            
+            if (data.success && data.records && data.records.length > 0) {
+                let html = '';
+                data.records.forEach(record => {
+                    const date = new Date(record.created_at).toLocaleString('zh-CN', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    
+                    html += `
+                        <div class="history-item bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
+                            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                <span>${date}</span>
+                                <span class="uppercase font-medium">${record.language}</span>
+                            </div>
+                            <div class="font-medium text-sm mb-2 line-clamp-2 text-gray-800 dark:text-gray-200">
+                                ${record.filename}
+                            </div>
+                            ${record.file_url ? `
+                                <a href="${record.file_url}" target="_blank" 
+                                   class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs hover:underline mb-3">
+                                    📎 查看原图
+                                </a>
+                            ` : ''}
+                            <div class="text-xs text-gray-600 dark:text-gray-400 line-clamp-4 leading-relaxed">
+                                ${record.ocr_text ? record.ocr_text.substring(0, 150) + (record.ocr_text.length > 150 ? '...' : '') : '无识别文字'}
+                            </div>
+                        </div>`;
+                });
+                historyList.innerHTML = html;
+            } else {
+                historyList.innerHTML = `
+                    <div class="text-center py-12 text-gray-400 dark:text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2" />
+                        </svg>
+                        <p>暂无上传记录</p>
+                    </div>`;
             }
-        } catch (e) {
-            historyList.innerHTML = '<p class="text-center text-xs text-red-400">列表加载异常</p>';
+        } catch (err) {
+            console.error('加载历史失败:', err);
+            historyList.innerHTML = `
+                <div class="text-center py-10 text-red-400">
+                    加载历史记录失败
+                </div>`;
         }
     }
 
-    window.viewHistory = (encodedText) => {
-        const text = decodeURIComponent(encodedText);
-        translationCache['zh'] = text;
-        translationCache['en'] = '';
-        currentLang = 'zh';
-        resultContent.innerText = text;
-        previewContainer.classList.add('hidden'); // 历史查看暂不展示预览图（除非后端存了URL）
-    };
-
-    window.deleteRecord = async (e, id) => {
+    // ==================== 事件绑定 ====================
+    dropzone.addEventListener('click', () => fileInput.click());
+    selectFileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!confirm("确定永久删除这条记录吗？")) return;
-        try {
-            const res = await fetch(`/delete/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (data.success) loadHistory();
-        } catch (e) {
-            alert("删除失败");
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    
+    dropzone.addEventListener('dragover', (e) => { 
+        e.preventDefault(); 
+        dropzone.classList.add('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20'); 
+    });
+    dropzone.addEventListener('dragleave', () => { 
+        dropzone.classList.remove('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20'); 
+    });
+    dropzone.addEventListener('drop', (e) => { 
+        e.preventDefault(); 
+        dropzone.classList.remove('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20');
+        handleFile(e.dataTransfer.files[0]); 
+    });
+
+    // 粘贴上传
+    document.addEventListener('paste', (event) => {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        for (let item of items) {
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                handleFile(item.getAsFile());
+            }
         }
-    };
+    });
 
-    document.getElementById('refresh-history').onclick = loadHistory;
+    // 语言切换
+    langToggleBtn.addEventListener('click', async () => {
+        if (!currentDisplayLang) return;
+        const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
+        
+        if (translationCache[targetLang]) {
+            updateDisplay(translationCache[targetLang]);
+            currentDisplayLang = targetLang;
+            statusText.innerText = `显示语种：${targetLang === 'zh' ? '中文' : '英文'}`;
+            return;
+        }
 
-    // 首次加载历史
+        statusText.innerText = "翻译引擎启动中...";
+        try {
+            const response = await fetch('/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: translationCache[currentDisplayLang], target: targetLang })
+            });
+            const data = await response.json();
+            if (data.success) {
+                translationCache[targetLang] = data.text;
+                updateDisplay(data.text);
+                currentDisplayLang = targetLang;
+                statusText.innerText = "翻译已同步";
+            }
+        } catch (err) {
+            statusText.innerText = "翻译失败";
+        }
+    });
+
+    // 复制按钮
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(resultContent.innerText || '').then(() => {
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = "✅ 已复制";
+            setTimeout(() => copyBtn.innerText = originalText, 1500);
+        });
+    });
+
+    // 刷新历史记录按钮
+    const refreshBtn = document.getElementById('refresh-history');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadHistory);
+    }
+
+    // 页面加载时自动加载历史记录
     loadHistory();
 });
