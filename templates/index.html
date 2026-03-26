@@ -3,121 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Medical OCR | 智能病例识别</title>
+    <title>AI Medical OCR</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; }
-        .whitespace-pre-wrap { word-break: break-word; }
-        #result-content::-webkit-scrollbar, #history-list::-webkit-scrollbar { width: 5px; }
-        #result-content::-webkit-scrollbar-thumb, #history-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark #result-content::-webkit-scrollbar-thumb, .dark #history-list::-webkit-scrollbar-thumb { background: #475569; }
-        .history-item { transition: all 0.2s; }
-        .history-item:hover { background-color: #f8fafc; }
-        .dark .history-item:hover { background-color: #1f2937; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .dark .custom-scroll::-webkit-scrollbar-thumb { background: #334155; }
+        .history-card:hover .delete-btn { opacity: 1; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col transition-colors duration-300">
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300">
 
-    <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b dark:border-gray-800 sticky top-0 z-50">
+        <div class="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                    +
-                </div>
-                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                    Medical OCR
-                </h1>
+                <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
+                    <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                </svg>
+                <h1 class="text-xl font-bold tracking-tight">Medical OCR</h1>
             </div>
             
             <div class="flex items-center gap-4">
-                <button id="theme-toggle" class="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
-                    </svg>
-                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
-                    </svg>
+                <button id="theme-toggle" class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:ring-2 ring-blue-500 transition-all">
+                    <span id="theme-icon-dark" class="hidden dark:block text-lg">☀️</span>
+                    <span id="theme-icon-light" class="block dark:hidden text-lg">🌙</span>
                 </button>
-                <button id="output-lang-toggle" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-sm font-semibold shadow-md transition-all active:scale-95 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-                    中/En 互译
+                <button id="output-lang-toggle" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg transition-all active:scale-95">
+                    切换显示语言
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+    <main class="flex-1 max-w-[1600px] mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-10 gap-6">
         
-        <div class="lg:col-span-3 space-y-8">
-            <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 transform transition-all hover:-translate-y-1">
-                <div id="dropzone" class="border-3 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all group">
+        <div class="lg:col-span-4 space-y-6">
+            <div class="bg-white dark:bg-gray-900 rounded-[2rem] border dark:border-gray-800 p-8 shadow-sm h-full flex flex-col">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <span class="w-1 h-5 bg-blue-600 rounded-full"></span> 上传病例
+                </h2>
+                <div id="dropzone" class="flex-1 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl flex flex-col items-center justify-center p-10 hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all cursor-pointer group">
                     <input id="file-input" type="file" class="hidden" accept="image/*">
-                    <div class="w-20 h-20 mx-auto mb-6 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">点击或拖拽图片至此</h3>
-                    <p class="text-gray-500 dark:text-gray-400 text-sm">支持 JPG, PNG 格式的病例/处方图片</p>
-                    
-                    <button id="select-file-btn" class="mt-6 px-6 py-2.5 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm">
-                        浏览文件
+                    <div class="text-5xl mb-4 group-hover:scale-110 transition-transform">📤</div>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">拖拽图片到这里</p>
+                    <p class="text-xs text-gray-400 mt-2">支持 JPG, PNG 格式</p>
+                    <button id="select-file-btn" class="mt-6 px-8 py-3 bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-sm rounded-2xl text-sm font-bold hover:bg-gray-50 transition-colors">
+                        浏览本地文件
                     </button>
                 </div>
-                
-                <div id="preview-container" class="mt-6 hidden flex flex-col items-center">
-                    <img id="preview-image" class="max-h-64 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 object-contain">
-                </div>
-            </div>
-
-            <div id="result-card" class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 min-h-[520px] flex flex-col">
-                <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
-                            <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">识别与分析结果</h2>
-                    </div>
-                    <button id="copy-btn" class="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl text-sm font-medium transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        一键复制
-                    </button>
-                </div>
-
-                <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm flex items-center gap-2 font-medium">
-                    <svg class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span id="status-text">AI 正在飞速处理中...</span>
-                </div>
-
-                <div class="flex-1 bg-gray-50 dark:bg-slate-900/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 relative overflow-hidden group">
-                    <div id="result-content" class="h-full overflow-y-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300 text-[15px] leading-relaxed select-text absolute inset-4">
-                        <div class="h-full flex flex-col items-center justify-center text-center opacity-50">
-                            <svg class="w-16 h-16 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <p class="text-gray-400 dark:text-gray-500 italic text-sm">暂无识别数据，请先在左侧上传病例</p>
-                        </div>
+                <div id="preview-container" class="mt-6 hidden">
+                    <div class="relative group">
+                        <img id="preview-image" class="w-full rounded-2xl border dark:border-gray-700 shadow-lg">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center text-white text-xs">预览图</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="lg:col-span-1 bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-6 flex flex-col h-[650px]">
-            <div class="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-700 pb-3">
-                <h2 class="text-base font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                    <span class="w-1.5 h-5 bg-purple-500 rounded-full"></span>上传历史
-                </h2>
-                <button id="refresh-history" class="p-2 text-gray-400 hover:text-blue-500 transition-colors" title="刷新列表">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                </button>
+        <div class="lg:col-span-4">
+            <div class="bg-white dark:bg-gray-900 rounded-[2rem] border dark:border-gray-800 p-8 shadow-sm h-full flex flex-col min-h-[600px]">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <span class="w-1 h-5 bg-emerald-500 rounded-full"></span> 分析结果
+                    </h2>
+                    <button id="copy-btn" class="px-4 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-bold hover:text-blue-500">复制</button>
+                </div>
+                <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl text-xs animate-pulse">
+                    🚀 AI 正在处理您的医疗文档...
+                </div>
+                <div id="result-content" class="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 text-[15px] leading-relaxed custom-scroll overflow-y-auto whitespace-pre-wrap font-medium">
+                    等待文件上传...
+                </div>
             </div>
-            
-            <div id="history-list" class="flex-1 overflow-y-auto space-y-3 pr-2">
-                <div class="text-center text-sm text-gray-400 mt-10">加载中...</div>
+        </div>
+
+        <div class="lg:col-span-2">
+            <div class="bg-white dark:bg-gray-900 rounded-[2rem] border dark:border-gray-800 p-6 shadow-sm h-full max-h-[800px] flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-sm">历史记录</h3>
+                    <button id="refresh-history" class="text-xs text-blue-500">刷新</button>
+                </div>
+                <div id="history-list" class="flex-1 overflow-y-auto space-y-3 custom-scroll pr-1">
+                    </div>
             </div>
         </div>
     </main>
 
-    <script src="/static/script.js?v=2"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
