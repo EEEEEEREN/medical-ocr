@@ -15,8 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultCard = document.getElementById('result-card');
 
     let translationCache = { 'zh': '', 'en': '' };
-    let currentDisplayLang = ''; 
+    let currentDisplayLang = '';
+    let currentFileUrl = '';        // 新增：保存文件URL
 
+    // 主题切换
     function updateThemeIcons() {
         if (document.documentElement.classList.contains('dark')) {
             themeToggleDarkIcon.classList.remove('hidden');
@@ -37,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         translationCache = { 'zh': '', 'en': '' };
         currentDisplayLang = '';
-        
+        currentFileUrl = '';
+
         const reader = new FileReader();
         reader.onload = (e) => {
             previewImage.src = e.target.result;
@@ -45,21 +48,18 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        // 优化加载动画反馈
+        // 加载动画
         resultContent.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full w-full gap-4 py-10">
                 <div class="relative">
                     <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <div class="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></div>
-                    </div>
                 </div>
                 <div class="text-center">
                     <p class="text-blue-600 dark:text-blue-400 font-medium animate-pulse">AI 正在深度解析中...</p>
                     <p class="text-xs text-gray-400 mt-1">预计需要 3-5 秒</p>
                 </div>
             </div>`;
-        
+
         statusBar.classList.remove('hidden');
         statusText.innerText = "正在调用 OCR 服务...";
 
@@ -69,35 +69,42 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/ocr', { method: 'POST', body: formData });
             const data = await response.json();
+
             if (data.success) {
-                const detected = (data.text.match(/[a-zA-Z]/g) || []).length / data.text.length > 0.4 ? 'en' : 'zh';
+                const detected = data.language || ( (data.text.match(/[a-zA-Z]/g) || []).length / data.text.length > 0.4 ? 'en' : 'zh' );
                 translationCache[detected] = data.text;
                 currentDisplayLang = detected;
+                currentFileUrl = data.file_url || '';
+
                 updateDisplay(data.text);
-                statusText.innerText = `识别完成（${detected === 'zh' ? '中文' : '英文'}）`;
+
+                // 显示保存成功提示
+                let saveMsg = '✅ 已成功识别并保存到数据库';
+                if (currentFileUrl) {
+                    saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400">查看原图</a>`;
+                }
+                statusText.innerHTML = saveMsg;
+
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
+                statusText.innerText = "识别失败";
             }
         } catch (err) {
             resultContent.innerHTML = '<div class="text-red-500 p-4 italic">网络连接失败</div>';
+            statusText.innerText = "网络错误";
         }
     }
 
     function updateDisplay(text) {
-        // 解除初始高度锁定
         resultCard.classList.replace('h-[500px]', 'min-h-[500px]');
         resultContent.classList.remove('items-center', 'justify-center');
         resultContent.classList.add('items-start', 'justify-start');
         resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed text-sm lg:text-base p-2">${text}</pre>`;
     }
 
-    // 全框点击绑定
+    // 事件绑定（保持原有）
     dropzone.addEventListener('click', () => fileInput.click());
-    selectFileBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fileInput.click();
-    });
-
+    selectFileBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
     
     dropzone.addEventListener('dragover', (e) => { 
