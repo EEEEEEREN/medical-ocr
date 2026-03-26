@@ -10,9 +10,12 @@
     <style>
         body { font-family: 'Inter', 'Noto Sans SC', sans-serif; }
         .whitespace-pre-wrap { word-break: break-word; }
-        #result-content::-webkit-scrollbar { width: 5px; }
-        #result-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark #result-content::-webkit-scrollbar-thumb { background: #475569; }
+        #result-content::-webkit-scrollbar, #history-list::-webkit-scrollbar { width: 5px; }
+        #result-content::-webkit-scrollbar-thumb, #history-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark #result-content::-webkit-scrollbar-thumb, .dark #history-list::-webkit-scrollbar-thumb { background: #475569; }
+        .history-item { transition: all 0.2s; }
+        .history-item:hover { background-color: #f8fafc; }
+        .dark .history-item:hover { background-color: #1f2937; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300">
@@ -42,9 +45,10 @@
         </div>
     </header>
 
-    <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
-        <div id="upload-card" class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[500px]">
+        <!-- 左侧：上传区域 -->
+        <div id="upload-card" class="lg:col-span-1 bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[520px]">
             <h2 class="text-lg font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-gray-100">
                 <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>导入病例图片
             </h2>
@@ -65,7 +69,8 @@
             </div>
         </div>
 
-        <div id="result-card" class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[500px] transition-all duration-500">
+        <!-- 中间：识别结果 -->
+        <div id="result-card" class="lg:col-span-1 bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[520px] transition-all duration-500">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-lg font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
                     <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>提取分析结果
@@ -87,12 +92,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- 新增：右侧历史记录 -->
+        <div class="lg:col-span-1 bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[520px]">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                    <span class="w-1.5 h-6 bg-purple-500 rounded-full"></span>上传历史记录
+                </h2>
+                <button id="refresh-history" class="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition-all">刷新</button>
+            </div>
+            
+            <div id="history-list" class="flex-1 overflow-y-auto space-y-4 pr-2">
+                <!-- 历史记录将由 JS 动态填充 -->
+                <div class="text-center py-10 text-gray-400 dark:text-gray-500">
+                    暂无历史记录
+                </div>
+            </div>
+        </div>
     </main>
 
     <footer class="py-6 text-center text-gray-400 dark:text-gray-600 text-xs mt-auto">
-        <p>© 2026 AI Medical OCR Assistant · v13.1</p>
+        <p>© 2026 AI Medical OCR Assistant · v14.0</p>
     </footer>
 
-    <script src="/static/js/script.js?v=13.1"></script>
+    <script src="/static/js/script.js?v=14.0"></script>
 </body>
 </html>
