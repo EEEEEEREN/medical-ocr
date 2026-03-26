@@ -6,7 +6,6 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
-# Vercel Blob（使用官方推荐的 Python wrapper）
 import vercel_blob
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -19,11 +18,8 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 
 db = SQLAlchemy(app)
 
-# Tencent Translate
 TENCENT_ID = os.environ.get('TENCENT_SECRET_ID', '').strip()
 TENCENT_KEY = os.environ.get('TENCENT_SECRET_KEY', '').strip()
-
-# Baidu OCR
 BAIDU_AK = os.environ.get('BAIDU_OCR_AK', '').strip()
 BAIDU_SK = os.environ.get('BAIDU_OCR_SK', '').strip()
 
@@ -31,7 +27,7 @@ BAIDU_SK = os.environ.get('BAIDU_OCR_SK', '').strip()
 class MedicalRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
-    file_url = db.Column(db.String(500), nullable=True)        # Vercel Blob URL
+    file_url = db.Column(db.String(500), nullable=True)
     ocr_text = db.Column(db.Text, nullable=True)
     language = db.Column(db.String(10), default='zh')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -46,7 +42,6 @@ class MedicalRecord(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
-# 首次部署时自动创建表
 with app.app_context():
     db.create_all()
 
@@ -63,32 +58,43 @@ def get_baidu_token():
         return None
 
 def upload_to_blob(file, filename):
-    """上传文件到 Vercel Blob - 优化稳定版"""
+    """上传到 Vercel Blob - 加强错误日志版"""
     try:
         ext = os.path.splitext(filename)[1].lower() or '.jpg'
-        # 生成唯一路径：medical/年月日/随机ID.ext
         unique_name = f"medical/{datetime.utcnow().strftime('%Y%m%d')}/{uuid.uuid4().hex[:16]}{ext}"
         
-        file.seek(0)  # 重置文件指针
-        
-        # 上传（使用 public 方便测试，后期可改 private）
+        file.seek(0)
+        file_bytes = file.read()
+
+        print(f"📤 开始上传 Blob: {unique_name} | 大小: {len(file_bytes)} bytes")
+
         result = vercel_blob.put(
             unique_name,
-            file.read(),
-            access='public',           # 或 'private'
+            file_bytes,
+            access='public',          # 先用 public 测试
             add_random_suffix=False
         )
-        
-        # 处理返回结果（可能是 dict 或 str）
+
+        print(f"📥 vercel_blob.put 返回值类型: {type(result)}")
+        print(f"📥 返回内容: {result}")
+
+        # 处理不同可能的返回值
         if isinstance(result, dict):
             url = result.get('url') or result.get('downloadUrl') or str(result)
         else:
             url = str(result)
-            
-        print(f"✅ Blob 上传成功: {url}")
-        return url
+
+        if url and url.startswith('http'):
+            print(f"✅ Blob 上传成功！URL: {url}")
+            return url
+        else:
+            print(f"⚠️ 返回内容不是有效 URL: {url}")
+            return None
+
     except Exception as e:
-        print(f"❌ Blob 上传失败: {str(e)}")
+        print(f"❌ Blob 上传异常: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return None
 
 # ==================== 路由 ====================
@@ -102,14 +108,14 @@ def ocr():
     if not file:
         return jsonify({"success": False, "error": "无文件"})
 
-    original_filename = file.filename or "unknown_file"
-    file_data = file.read()  # 先读取一次用于 OCR
+    original_filename = file.filename or "unknown"
+    file_data = file.read()
 
-    # 1. 上传到 Vercel Blob
+    # 上传 Blob
     file.seek(0)
     file_url = upload_to_blob(file, original_filename)
 
-    # 2. Baidu OCR 识别
+    # OCR
     img_64 = base64.b64encode(file_data).decode('utf-8')
     token = get_baidu_token()
     if not token:
@@ -117,24 +123,13 @@ def ocr():
 
     import requests
     api_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
-    res = requests.post(
-        api_url,
-        data={"image": img_64},
-        headers={'content-type': 'application/x-www-form-urlencoded'},
-        timeout=20
-    ).json()
+    res = requests.post(api_url, data={"image": img_64}, 
+                       headers={'content-type': 'application/x-www-form-urlencoded'}, timeout=20).json()
 
     if 'words_result' in res:
-        full_text = "\n".join([item.get('words', '') for item in res['words_result']])
-        
-        # 简单语种检测
-        if full_text:
-            ascii_ratio = sum(1 for c in full_text if c.isascii()) / len(full_text)
-            detected_lang = 'en' if ascii_ratio > 0.4 else 'zh'
-        else:
-            detected_lang = 'zh'
+        full_text = "\n".join([item.get('words', '') for item in res.get('words_result', [])])
+        detected_lang = 'en' if full_text and (sum(1 for c in full_text if c.isascii()) / len(full_text) > 0.4) else 'zh'
 
-        # 3. 保存到 Neon Postgres（即使 Blob 失败也保存文字）
         record = MedicalRecord(
             filename=original_filename,
             file_url=file_url,
@@ -152,8 +147,7 @@ def ocr():
             "language": detected_lang
         })
 
-    error_msg = res.get("error_msg", "识别失败")
-    return jsonify({"success": False, "error": error_msg})
+    return jsonify({"success": False, "error": res.get("error_msg", "识别失败")})
 
 @app.route('/translate', methods=['POST'])
 def translate():
@@ -162,11 +156,9 @@ def translate():
     target = data.get('target', 'en')
     if not q:
         return jsonify({"success": False, "error": "内容为空"})
-
     try:
         from tencentcloud.common import credential
         from tencentcloud.tmt.v20180321 import tmt_client, models
-
         cred = credential.Credential(TENCENT_ID, TENCENT_KEY)
         client = tmt_client.TmtClient(cred, "ap-guangzhou")
         req = models.TextTranslateRequest()
@@ -179,18 +171,10 @@ def translate():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
-# 查看历史记录（方便调试）
 @app.route('/history', methods=['GET'])
 def get_history():
-    try:
-        records = MedicalRecord.query.order_by(MedicalRecord.created_at.desc()).limit(30).all()
-        return jsonify({
-            "success": True,
-            "count": len(records),
-            "records": [r.to_dict() for r in records]
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    records = MedicalRecord.query.order_by(MedicalRecord.created_at.desc()).limit(50).all()
+    return jsonify({"success": True, "count": len(records), "records": [r.to_dict() for r in records]})
 
 if __name__ == '__main__':
     app.run(debug=True)
