@@ -18,8 +18,11 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 
 db = SQLAlchemy(app)
 
+# Tencent Translate 配置
 TENCENT_ID = os.environ.get('TENCENT_SECRET_ID', '').strip()
 TENCENT_KEY = os.environ.get('TENCENT_SECRET_KEY', '').strip()
+
+# Baidu OCR 配置
 BAIDU_AK = os.environ.get('BAIDU_OCR_AK', '').strip()
 BAIDU_SK = os.environ.get('BAIDU_OCR_SK', '').strip()
 
@@ -27,7 +30,7 @@ BAIDU_SK = os.environ.get('BAIDU_OCR_SK', '').strip()
 class MedicalRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
-    file_url = db.Column(db.String(500), nullable=True)
+    file_url = db.Column(db.String(500), nullable=True)        # Vercel Blob URL
     ocr_text = db.Column(db.Text, nullable=True)
     language = db.Column(db.String(10), default='zh')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -42,6 +45,7 @@ class MedicalRecord(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
+# 首次部署自动创建表
 with app.app_context():
     db.create_all()
 
@@ -58,7 +62,7 @@ def get_baidu_token():
         return None
 
 def upload_to_blob(file, filename):
-    """上传到 Vercel Blob - 加强错误日志版"""
+    """上传到 Vercel Blob - 修复版（去掉不支持的 'access' 参数）"""
     try:
         ext = os.path.splitext(filename)[1].lower() or '.jpg'
         unique_name = f"medical/{datetime.utcnow().strftime('%Y%m%d')}/{uuid.uuid4().hex[:16]}{ext}"
@@ -68,23 +72,19 @@ def upload_to_blob(file, filename):
 
         print(f"📤 开始上传 Blob: {unique_name} | 大小: {len(file_bytes)} bytes")
 
-        result = vercel_blob.put(
-            unique_name,
-            file_bytes,
-            access='public',          # 先用 public 测试
-            add_random_suffix=False
-        )
+        # 关键修复：Python vercel_blob.put 不支持 'access' 参数，使用最简调用
+        result = vercel_blob.put(unique_name, file_bytes)
 
         print(f"📥 vercel_blob.put 返回值类型: {type(result)}")
         print(f"📥 返回内容: {result}")
 
-        # 处理不同可能的返回值
+        # 处理返回值
         if isinstance(result, dict):
             url = result.get('url') or result.get('downloadUrl') or str(result)
         else:
             url = str(result)
 
-        if url and url.startswith('http'):
+        if url and ('http' in url.lower() or url.startswith('/')):
             print(f"✅ Blob 上传成功！URL: {url}")
             return url
         else:
@@ -108,14 +108,14 @@ def ocr():
     if not file:
         return jsonify({"success": False, "error": "无文件"})
 
-    original_filename = file.filename or "unknown"
-    file_data = file.read()
+    original_filename = file.filename or "unknown_file"
+    file_data = file.read()   # 用于 OCR
 
-    # 上传 Blob
+    # 1. 上传到 Vercel Blob
     file.seek(0)
     file_url = upload_to_blob(file, original_filename)
 
-    # OCR
+    # 2. Baidu OCR 识别
     img_64 = base64.b64encode(file_data).decode('utf-8')
     token = get_baidu_token()
     if not token:
@@ -123,13 +123,20 @@ def ocr():
 
     import requests
     api_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
-    res = requests.post(api_url, data={"image": img_64}, 
-                       headers={'content-type': 'application/x-www-form-urlencoded'}, timeout=20).json()
+    res = requests.post(
+        api_url,
+        data={"image": img_64},
+        headers={'content-type': 'application/x-www-form-urlencoded'},
+        timeout=20
+    ).json()
 
     if 'words_result' in res:
         full_text = "\n".join([item.get('words', '') for item in res.get('words_result', [])])
+        
+        # 简单语种检测
         detected_lang = 'en' if full_text and (sum(1 for c in full_text if c.isascii()) / len(full_text) > 0.4) else 'zh'
 
+        # 3. 保存到 Neon Postgres（即使 Blob 失败也保存文字）
         record = MedicalRecord(
             filename=original_filename,
             file_url=file_url,
@@ -156,6 +163,7 @@ def translate():
     target = data.get('target', 'en')
     if not q:
         return jsonify({"success": False, "error": "内容为空"})
+
     try:
         from tencentcloud.common import credential
         from tencentcloud.tmt.v20180321 import tmt_client, models
@@ -171,10 +179,18 @@ def translate():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+# 查看历史记录（调试用）
 @app.route('/history', methods=['GET'])
 def get_history():
-    records = MedicalRecord.query.order_by(MedicalRecord.created_at.desc()).limit(50).all()
-    return jsonify({"success": True, "count": len(records), "records": [r.to_dict() for r in records]})
+    try:
+        records = MedicalRecord.query.order_by(MedicalRecord.created_at.desc()).limit(50).all()
+        return jsonify({
+            "success": True,
+            "count": len(records),
+            "records": [r.to_dict() for r in records]
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True)
