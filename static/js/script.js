@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let translationCache = { 'zh': '', 'en': '' };
     let currentDisplayLang = '';
-    let currentFileUrl = '';        // 新增：保存文件URL
+    let currentFileUrl = '';
 
     // 主题切换
     function updateThemeIcons() {
@@ -29,11 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     updateThemeIcons();
+
     themeToggleBtn.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
         updateThemeIcons();
     });
 
+    // ==================== 核心：处理文件上传 ====================
     async function handleFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
         
@@ -41,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDisplayLang = '';
         currentFileUrl = '';
 
+        // 预览图片
         const reader = new FileReader();
         reader.onload = (e) => {
             previewImage.src = e.target.result;
@@ -71,19 +74,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                const detected = data.language || ( (data.text.match(/[a-zA-Z]/g) || []).length / data.text.length > 0.4 ? 'en' : 'zh' );
+                const detected = data.language || 
+                    ((data.text.match(/[a-zA-Z]/g) || []).length / (data.text.length || 1) > 0.4 ? 'en' : 'zh');
+                
                 translationCache[detected] = data.text;
                 currentDisplayLang = detected;
                 currentFileUrl = data.file_url || '';
 
                 updateDisplay(data.text);
 
-                // 显示保存成功提示
+                // 显示保存成功提示 + 原图链接
                 let saveMsg = '✅ 已成功识别并保存到数据库';
                 if (currentFileUrl) {
-                    saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400">查看原图</a>`;
+                    saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400 hover:text-blue-700">查看原图</a>`;
                 }
                 statusText.innerHTML = saveMsg;
+
+                // 自动刷新历史记录
+                loadHistory();
 
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
@@ -102,9 +110,69 @@ document.addEventListener('DOMContentLoaded', () => {
         resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed text-sm lg:text-base p-2">${text}</pre>`;
     }
 
-    // 事件绑定（保持原有）
+    // ==================== 历史记录功能 ====================
+    async function loadHistory() {
+        const historyList = document.getElementById('history-list');
+        try {
+            const res = await fetch('/history');
+            const data = await res.json();
+            
+            if (data.success && data.records && data.records.length > 0) {
+                let html = '';
+                data.records.forEach(record => {
+                    const date = new Date(record.created_at).toLocaleString('zh-CN', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    
+                    html += `
+                        <div class="history-item bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
+                            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                <span>${date}</span>
+                                <span class="uppercase font-medium">${record.language}</span>
+                            </div>
+                            <div class="font-medium text-sm mb-2 line-clamp-2 text-gray-800 dark:text-gray-200">
+                                ${record.filename}
+                            </div>
+                            ${record.file_url ? `
+                                <a href="${record.file_url}" target="_blank" 
+                                   class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs hover:underline mb-3">
+                                    📎 查看原图
+                                </a>
+                            ` : ''}
+                            <div class="text-xs text-gray-600 dark:text-gray-400 line-clamp-4 leading-relaxed">
+                                ${record.ocr_text ? record.ocr_text.substring(0, 150) + (record.ocr_text.length > 150 ? '...' : '') : '无识别文字'}
+                            </div>
+                        </div>`;
+                });
+                historyList.innerHTML = html;
+            } else {
+                historyList.innerHTML = `
+                    <div class="text-center py-12 text-gray-400 dark:text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2" />
+                        </svg>
+                        <p>暂无上传记录</p>
+                    </div>`;
+            }
+        } catch (err) {
+            console.error('加载历史失败:', err);
+            historyList.innerHTML = `
+                <div class="text-center py-10 text-red-400">
+                    加载历史记录失败
+                </div>`;
+        }
+    }
+
+    // ==================== 事件绑定 ====================
     dropzone.addEventListener('click', () => fileInput.click());
-    selectFileBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+    selectFileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput.click();
+    });
+
     fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
     
     dropzone.addEventListener('dragover', (e) => { 
@@ -120,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         handleFile(e.dataTransfer.files[0]); 
     });
 
+    // 粘贴上传
     document.addEventListener('paste', (event) => {
         const items = (event.clipboardData || event.originalEvent.clipboardData).items;
         for (let item of items) {
@@ -129,15 +198,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 语言切换
     langToggleBtn.addEventListener('click', async () => {
         if (!currentDisplayLang) return;
         const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
+        
         if (translationCache[targetLang]) {
             updateDisplay(translationCache[targetLang]);
             currentDisplayLang = targetLang;
             statusText.innerText = `显示语种：${targetLang === 'zh' ? '中文' : '英文'}`;
             return;
         }
+
         statusText.innerText = "翻译引擎启动中...";
         try {
             const response = await fetch('/translate', {
@@ -152,14 +224,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentDisplayLang = targetLang;
                 statusText.innerText = "翻译已同步";
             }
-        } catch (err) { statusText.innerText = "翻译失败"; }
+        } catch (err) {
+            statusText.innerText = "翻译失败";
+        }
     });
 
+    // 复制按钮
     copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(resultContent.innerText).then(() => {
+        navigator.clipboard.writeText(resultContent.innerText || '').then(() => {
             const originalText = copyBtn.innerText;
             copyBtn.innerText = "✅ 已复制";
             setTimeout(() => copyBtn.innerText = originalText, 1500);
         });
     });
+
+    // 刷新历史记录按钮
+    const refreshBtn = document.getElementById('refresh-history');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadHistory);
+    }
+
+    // 页面加载时自动加载历史记录
+    loadHistory();
 });
