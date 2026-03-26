@@ -12,13 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
-    const resultCard = document.getElementById('result-card');
 
     let translationCache = { 'zh': '', 'en': '' };
     let currentDisplayLang = '';
     let currentFileUrl = '';
 
-    // 主题切换
+    // =============== 主题切换 ===============
     function updateThemeIcons() {
         if (document.documentElement.classList.contains('dark')) {
             themeToggleDarkIcon.classList.remove('hidden');
@@ -28,20 +27,32 @@ document.addEventListener('DOMContentLoaded', () => {
             themeToggleDarkIcon.classList.add('hidden');
         }
     }
+
+    if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
     updateThemeIcons();
 
-    themeToggleBtn.addEventListener('click', () => {
-        document.documentElement.classList.toggle('dark');
+    themeToggleBtn.addEventListener('click', function() {
+        if (document.documentElement.classList.contains('dark')) {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('color-theme', 'light');
+        } else {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('color-theme', 'dark');
+        }
         updateThemeIcons();
     });
 
-    // ==================== 核心：处理文件上传 ====================
+    // =============== 上传与识别逻辑 ===============
+    function updateDisplay(text) {
+        resultContent.innerHTML = text ? text : '<div class="text-gray-400 italic text-center mt-10">内容为空</div>';
+    }
+
     async function handleFile(file) {
-        if (!file || !file.type.startsWith('image/')) return;
-        
-        translationCache = { 'zh': '', 'en': '' };
-        currentDisplayLang = '';
-        currentFileUrl = '';
+        if (!file) return;
 
         // 预览图片
         const reader = new FileReader();
@@ -51,199 +62,251 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        // 加载动画
-        resultContent.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full w-full gap-4 py-10">
-                <div class="relative">
-                    <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
-                </div>
-                <div class="text-center">
-                    <p class="text-blue-600 dark:text-blue-400 font-medium animate-pulse">AI 正在深度解析中...</p>
-                    <p class="text-xs text-gray-400 mt-1">预计需要 3-5 秒</p>
-                </div>
-            </div>`;
-
+        // 重置状态
+        translationCache = { 'zh': '', 'en': '' };
+        currentDisplayLang = '';
+        currentFileUrl = '';
         statusBar.classList.remove('hidden');
-        statusText.innerText = "正在调用 OCR 服务...";
+        statusText.innerText = "正在上传并解析图片，请稍候...";
+        updateDisplay('');
 
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            const response = await fetch('/ocr', { method: 'POST', body: formData });
+            const response = await fetch('/ocr', {
+                method: 'POST',
+                body: formData
+            });
             const data = await response.json();
 
             if (data.success) {
-                const detected = data.language || 
-                    ((data.text.match(/[a-zA-Z]/g) || []).length / (data.text.length || 1) > 0.4 ? 'en' : 'zh');
-                
-                translationCache[detected] = data.text;
-                currentDisplayLang = detected;
+                translationCache['zh'] = data.text;
+                currentDisplayLang = 'zh';
                 currentFileUrl = data.file_url || '';
-
                 updateDisplay(data.text);
-
-                // 显示保存成功提示 + 原图链接
-                let saveMsg = '✅ 已成功识别并保存到数据库';
-                if (currentFileUrl) {
-                    saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400 hover:text-blue-700">查看原图</a>`;
-                }
-                statusText.innerHTML = saveMsg;
-
-                // 自动刷新历史记录
+                statusText.innerText = "✅ 识别完成！";
+                setTimeout(() => statusBar.classList.add('hidden'), 3000);
+                
+                // 刷新历史记录
                 loadHistory();
-
             } else {
-                resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
-                statusText.innerText = "识别失败";
+                statusText.innerText = `❌ 失败: ${data.error}`;
+                updateDisplay(`[错误信息]\n${data.error}`);
             }
-        } catch (err) {
-            resultContent.innerHTML = '<div class="text-red-500 p-4 italic">网络连接失败</div>';
-            statusText.innerText = "网络错误";
+        } catch (error) {
+            console.error('Error:', error);
+            statusText.innerText = "❌ 网络或服务器错误";
+            updateDisplay(`[系统错误]\n请检查网络连接或控制台日志。\n${error.message}`);
         }
     }
 
-    function updateDisplay(text) {
-        resultCard.classList.replace('h-[500px]', 'min-h-[500px]');
-        resultContent.classList.remove('items-center', 'justify-center');
-        resultContent.classList.add('items-start', 'justify-start');
-        resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 w-full text-left leading-relaxed text-sm lg:text-base p-2">${text}</pre>`;
+    // 拖拽事件绑定
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
     }
 
-    // ==================== 历史记录功能 ====================
-    async function loadHistory() {
-        const historyList = document.getElementById('history-list');
-        try {
-            const res = await fetch('/history');
-            const data = await res.json();
-            
-            if (data.success && data.records && data.records.length > 0) {
-                let html = '';
-                data.records.forEach(record => {
-                    const date = new Date(record.created_at).toLocaleString('zh-CN', { 
-                        month: 'short', 
-                        day: 'numeric', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                    
-                    html += `
-                        <div class="history-item bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
-                            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                <span>${date}</span>
-                                <span class="uppercase font-medium">${record.language}</span>
-                            </div>
-                            <div class="font-medium text-sm mb-2 line-clamp-2 text-gray-800 dark:text-gray-200">
-                                ${record.filename}
-                            </div>
-                            ${record.file_url ? `
-                                <a href="${record.file_url}" target="_blank" 
-                                   class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs hover:underline mb-3">
-                                    📎 查看原图
-                                </a>
-                            ` : ''}
-                            <div class="text-xs text-gray-600 dark:text-gray-400 line-clamp-4 leading-relaxed">
-                                ${record.ocr_text ? record.ocr_text.substring(0, 150) + (record.ocr_text.length > 150 ? '...' : '') : '无识别文字'}
-                            </div>
-                        </div>`;
-                });
-                historyList.innerHTML = html;
-            } else {
-                historyList.innerHTML = `
-                    <div class="text-center py-12 text-gray-400 dark:text-gray-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2" />
-                        </svg>
-                        <p>暂无上传记录</p>
-                    </div>`;
-            }
-        } catch (err) {
-            console.error('加载历史失败:', err);
-            historyList.innerHTML = `
-                <div class="text-center py-10 text-red-400">
-                    加载历史记录失败
-                </div>`;
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => {
+            dropzone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => {
+            dropzone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        }, false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            fileInput.files = e.dataTransfer.files;
+            handleFile(file);
+        } else {
+            alert('请上传图片文件');
         }
-    }
+    });
 
-    // ==================== 事件绑定 ====================
-    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('click', (e) => {
+        if (e.target !== selectFileBtn) {
+            fileInput.click();
+        }
+    });
+
     selectFileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         fileInput.click();
     });
 
-    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-    
-    dropzone.addEventListener('dragover', (e) => { 
-        e.preventDefault(); 
-        dropzone.classList.add('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20'); 
-    });
-    dropzone.addEventListener('dragleave', () => { 
-        dropzone.classList.remove('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20'); 
-    });
-    dropzone.addEventListener('drop', (e) => { 
-        e.preventDefault(); 
-        dropzone.classList.remove('border-blue-500', 'bg-blue-50/30', 'dark:bg-blue-900/20');
-        handleFile(e.dataTransfer.files[0]); 
-    });
-
-    // 粘贴上传
-    document.addEventListener('paste', (event) => {
-        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-        for (let item of items) {
-            if (item.kind === 'file' && item.type.startsWith('image/')) {
-                handleFile(item.getAsFile());
-            }
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            handleFile(this.files[0]);
         }
     });
 
-    // 语言切换
+    // =============== 翻译功能 ===============
     langToggleBtn.addEventListener('click', async () => {
-        if (!currentDisplayLang) return;
-        const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
+        if (!translationCache['zh']) {
+            alert('请先上传图片进行识别！');
+            return;
+        }
+
+        const targetLang = currentDisplayLang === 'zh' ? 'en' : 'zh';
         
         if (translationCache[targetLang]) {
             updateDisplay(translationCache[targetLang]);
             currentDisplayLang = targetLang;
-            statusText.innerText = `显示语种：${targetLang === 'zh' ? '中文' : '英文'}`;
+            statusBar.classList.remove('hidden');
+            statusText.innerText = `✅ 已切换至${targetLang === 'zh' ? '中文' : '英文'}`;
+            setTimeout(() => statusBar.classList.add('hidden'), 2000);
             return;
         }
 
-        statusText.innerText = "翻译引擎启动中...";
+        statusBar.classList.remove('hidden');
+        statusText.innerText = "正在调用翻译引擎，请稍候...";
+        
         try {
             const response = await fetch('/translate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: translationCache[currentDisplayLang], target: targetLang })
+                body: JSON.stringify({ 
+                    text: translationCache[currentDisplayLang], 
+                    target: targetLang 
+                })
             });
             const data = await response.json();
             if (data.success) {
                 translationCache[targetLang] = data.text;
                 updateDisplay(data.text);
                 currentDisplayLang = targetLang;
-                statusText.innerText = "翻译已同步";
+                statusText.innerText = "✅ 翻译完成！";
+                setTimeout(() => statusBar.classList.add('hidden'), 2000);
+            } else {
+                statusText.innerText = `❌ 翻译失败: ${data.error}`;
             }
         } catch (err) {
-            statusText.innerText = "翻译失败";
+            statusText.innerText = "❌ 翻译请求异常";
         }
     });
 
-    // 复制按钮
+    // =============== 复制功能 ===============
     copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(resultContent.innerText || '').then(() => {
-            const originalText = copyBtn.innerText;
-            copyBtn.innerText = "✅ 已复制";
-            setTimeout(() => copyBtn.innerText = originalText, 1500);
+        const textToCopy = resultContent.innerText || '';
+        if (!textToCopy.trim() || textToCopy.includes('暂无识别数据')) {
+            alert('没有可复制的内容！');
+            return;
+        }
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 已复制';
+            setTimeout(() => copyBtn.innerHTML = originalHTML, 2000);
+        }).catch(err => {
+            alert('复制失败，请手动选择复制');
         });
     });
 
-    // 刷新历史记录按钮
-    const refreshBtn = document.getElementById('refresh-history');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', loadHistory);
+    // =============== 历史记录加载与查看 ===============
+    async function loadHistory() {
+        const historyList = document.getElementById('history-list');
+        try {
+            const res = await fetch('/history');
+            const data = await res.json();
+            
+            if (data.success) {
+                if (!data.records || data.records.length === 0) {
+                    historyList.innerHTML = '<div class="text-center text-sm text-gray-400 mt-10">暂无历史记录</div>';
+                    return;
+                }
+                
+                historyList.innerHTML = data.records.map(rec => {
+                    const dateStr = rec.created_at.split(' ')[0]; // 只显示日期，省空间
+                    // 【新增】 加入了一个隐藏的删除按钮，group-hover 时显示
+                    return `
+                        <div class="group relative history-item p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer overflow-hidden" onclick="viewHistoryItem(this, '${encodeURIComponent(rec.ocr_text || '')}', '${rec.file_url || ''}')">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
+                                <button onclick="deleteRecord(event, ${rec.id})" class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all" title="删除记录">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title="${rec.filename}">${rec.filename}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                historyList.innerHTML = '<div class="text-center text-sm text-red-400 mt-10">加载失败</div>';
+            }
+        } catch (e) {
+            console.error("历史加载失败:", e);
+            historyList.innerHTML = '<div class="text-center text-sm text-red-400 mt-10">网络错误</div>';
+        }
     }
 
-    // 页面加载时自动加载历史记录
+    // 点击历史记录查看
+    window.viewHistoryItem = function(element, encodedText, fileUrl) {
+        // 高亮当前选中的条目
+        document.querySelectorAll('.history-item').forEach(el => {
+            el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        });
+        element.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+
+        const text = decodeURIComponent(encodedText);
+        translationCache = { 'zh': text, 'en': '' };
+        currentDisplayLang = 'zh';
+        updateDisplay(text);
+        
+        if (fileUrl) {
+            previewImage.src = fileUrl;
+            previewContainer.classList.remove('hidden');
+        } else {
+            previewContainer.classList.add('hidden');
+        }
+    };
+
+    // 【新增】 删除历史记录
+    window.deleteRecord = async function(event, id) {
+        // 阻止点击事件冒泡到外层的 viewHistoryItem
+        event.stopPropagation(); 
+        
+        if (!confirm('确定要永久删除这条记录吗？')) return;
+        
+        try {
+            const res = await fetch(`/delete/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (data.success) {
+                // 删除成功后重新加载列表
+                loadHistory(); 
+            } else {
+                alert('删除失败: ' + data.error);
+            }
+        } catch (e) {
+            alert('删除请求异常');
+            console.error(e);
+        }
+    };
+
+    // 绑定刷新按钮
+    const refreshBtn = document.getElementById('refresh-history');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            const icon = refreshBtn.querySelector('svg');
+            icon.classList.add('animate-spin');
+            loadHistory().then(() => {
+                setTimeout(() => icon.classList.remove('animate-spin'), 500);
+            });
+        });
+    }
+
+    // 页面加载时自动获取历史记录
     loadHistory();
 });
