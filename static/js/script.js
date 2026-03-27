@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDisplayLang = '';
         currentFileUrl = '';
 
-        // 预览图片
         const reader = new FileReader();
         reader.onload = (e) => {
             previewImage.src = e.target.result;
@@ -50,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        // 加载动画
         resultContent.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full gap-4 py-10">
                 <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
@@ -75,19 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentDisplayLang = detected;
                 currentFileUrl = data.file_url || '';
 
-                // 显示识别结果
                 resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 text-sm leading-relaxed">${data.text}</pre>`;
 
-                // 显示保存状态
                 let saveMsg = '✅ 已成功识别并保存到数据库';
                 if (currentFileUrl) {
                     saveMsg += ` <a href="${currentFileUrl}" target="_blank" class="underline text-blue-600 dark:text-blue-400">查看原图</a>`;
                 }
                 statusText.innerHTML = saveMsg;
 
-                // 自动刷新历史记录
-                loadHistory();
-
+                loadHistory();   // 自动刷新历史
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
                 statusText.innerHTML = "识别失败";
@@ -98,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==================== 仅前端隐藏记录（数据库不删除） ====================
+    // ==================== 前端隐藏记录（仅网页隐藏，数据库保留） ====================
     function getDeletedIds() {
         const deleted = localStorage.getItem('deletedRecords');
         return deleted ? JSON.parse(deleted) : [];
@@ -134,14 +128,15 @@ document.addEventListener('DOMContentLoaded', () => {
             let html = '';
             visibleRecords.forEach(record => {
                 const date = new Date(record.created_at).toLocaleString('zh-CN', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
 
                 html += `
-                    <div class="history-item bg-gray-50 dark:bg-gray-900 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 group">
+                    <div class="history-item bg-gray-50 dark:bg-gray-900 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 group relative">
+                        <button onclick="hideRecord(${record.id})" 
+                                class="absolute top-2 right-2 text-red-500 hover:text-red-600 text-xl leading-none opacity-0 group-hover:opacity-100 transition-all">
+                            ×
+                        </button>
                         <div class="flex justify-between text-[10px] text-gray-500 mb-1">
                             <span>${date}</span>
                             <span class="uppercase">${record.language}</span>
@@ -152,10 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="text-[10px] text-gray-600 dark:text-gray-400 line-clamp-3">
                             ${record.ocr_text ? record.ocr_text.substring(0, 85) + '...' : '无识别文字'}
                         </div>
-                        <button onclick="hideRecord(${record.id})" 
-                                class="mt-2 text-red-500 hover:text-red-600 text-[10px] opacity-70 hover:opacity-100">
-                            隐藏记录
-                        </button>
                     </div>`;
             });
             container.innerHTML = html;
@@ -164,12 +155,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 隐藏记录（仅前端）
+    // 隐藏记录（仅第一次询问确认）
+    let hasConfirmedHide = false;
+
     window.hideRecord = function(id) {
-        if (confirm('确定要在网页上隐藏这条记录吗？\n数据库中的记录仍然会保留。')) {
-            addToDeleted(id);
-            loadHistory();
+        if (!hasConfirmedHide) {
+            if (!confirm('确定要删除这条记录吗？')) {
+                return;
+            }
+            hasConfirmedHide = true;   // 第一次确认后，后面不再询问
         }
+        addToDeleted(id);
+        loadHistory();
     };
 
     // ==================== 事件绑定 ====================
@@ -190,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleFile(e.dataTransfer.files[0]); 
     });
 
-    // 粘贴上传
     document.addEventListener('paste', (event) => {
         const items = (event.clipboardData || event.originalEvent.clipboardData).items;
         for (let item of items) {
@@ -238,6 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 页面加载时自动加载历史记录
+    // 页面加载时加载历史记录
     loadHistory();
 });
