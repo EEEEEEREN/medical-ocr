@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThemeIcons();
     });
 
-    // ==================== 处理文件上传 ====================
+    // ==================== 文件上传 ====================
     async function handleFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
 
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 statusText.innerHTML = saveMsg;
 
-                loadHistory();
+                loadHistory();   // 自动刷新历史
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
                 statusText.innerHTML = "识别失败";
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==================== 前端隐藏记录 ====================
+    // ==================== 前端隐藏记录（优化速度） ====================
     function getDeletedIds() {
         const deleted = localStorage.getItem('deletedRecords');
         return deleted ? JSON.parse(deleted) : [];
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (!data.records || data.records.length === 0) {
-                container.innerHTML = `<p class="text-gray-400 text-center py-8 text-xs">暂无记录</p>`;
+                container.innerHTML = `<p class="text-gray-400 text-center py-8 text-xs">暂无历史记录</p>`;
                 return;
             }
 
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const visibleRecords = data.records.filter(record => !deletedIds.includes(record.id));
 
             if (visibleRecords.length === 0) {
-                container.innerHTML = `<p class="text-gray-400 text-center py-8 text-xs">暂无记录（已全部隐藏）</p>`;
+                container.innerHTML = `<p class="text-gray-400 text-center py-8 text-xs">暂无历史记录</p>`;
                 return;
             }
 
@@ -150,11 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             container.innerHTML = html;
         } catch (e) {
-            container.innerHTML = `<p class="text-red-400 text-xs py-4">加载历史失败</p>`;
+            container.innerHTML = `<p class="text-gray-400 text-center py-8 text-xs">暂无历史记录</p>`;
         }
     }
 
-    // 隐藏记录（仅第一次询问）
+    // 隐藏记录（仅第一次询问，之后直接隐藏，速度更快）
     let hasConfirmedHide = false;
 
     window.hideRecord = function(id) {
@@ -164,8 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             hasConfirmedHide = true;
         }
+        
+        // 即时隐藏（不需要等待接口返回，速度更快）
         addToDeleted(id);
-        loadHistory();
+        loadHistory();   // 立即刷新列表
     };
 
     // ==================== 事件绑定 ====================
@@ -195,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 语言切换 + 修复翻译后状态文字
+    // 语言切换 + 修复状态文字
     langToggleBtn.addEventListener('click', async () => {
         if (!currentDisplayLang) return;
         const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
