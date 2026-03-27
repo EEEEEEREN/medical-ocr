@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 statusText.innerHTML = saveMsg;
 
-                loadHistory();   // 自动刷新历史
+                loadHistory();
             } else {
                 resultContent.innerHTML = `<div class="text-red-500 p-4 italic">识别出错: ${data.error}</div>`;
                 statusText.innerHTML = "识别失败";
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==================== 前端隐藏记录（仅网页隐藏，数据库保留） ====================
+    // ==================== 前端隐藏记录 ====================
     function getDeletedIds() {
         const deleted = localStorage.getItem('deletedRecords');
         return deleted ? JSON.parse(deleted) : [];
@@ -134,12 +134,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `
                     <div class="history-item bg-gray-50 dark:bg-gray-900 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 group relative">
                         <button onclick="hideRecord(${record.id})" 
-                                class="absolute top-2 right-2 text-red-500 hover:text-red-600 text-xl leading-none opacity-0 group-hover:opacity-100 transition-all">
+                                class="absolute top-1 right-1 text-red-500 hover:text-red-600 text-2xl leading-none opacity-0 group-hover:opacity-100 transition-all">
                             ×
                         </button>
                         <div class="flex justify-between text-[10px] text-gray-500 mb-1">
                             <span>${date}</span>
-                            <span class="uppercase">${record.language}</span>
                         </div>
                         <div class="text-xs font-medium mb-1 line-clamp-1">${record.filename}</div>
                         ${record.file_url ? 
@@ -155,15 +154,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 隐藏记录（仅第一次询问确认）
+    // 隐藏记录（仅第一次询问）
     let hasConfirmedHide = false;
 
     window.hideRecord = function(id) {
         if (!hasConfirmedHide) {
-            if (!confirm('确定要删除这条记录吗？')) {
+            if (!confirm('确定要在网页上隐藏这条记录吗？\n数据库中的记录仍然会永久保留。')) {
                 return;
             }
-            hasConfirmedHide = true;   // 第一次确认后，后面不再询问
+            hasConfirmedHide = true;
         }
         addToDeleted(id);
         loadHistory();
@@ -196,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 语言切换
+    // 语言切换 + 修复翻译后状态文字
     langToggleBtn.addEventListener('click', async () => {
         if (!currentDisplayLang) return;
         const targetLang = (currentDisplayLang === 'zh') ? 'en' : 'zh';
@@ -204,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (translationCache[targetLang]) {
             resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 text-sm leading-relaxed">${translationCache[targetLang]}</pre>`;
             currentDisplayLang = targetLang;
+            statusText.innerHTML = `显示语种：${targetLang === 'zh' ? '中文' : '英文'}`;
             return;
         }
 
@@ -219,6 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 translationCache[targetLang] = data.text;
                 resultContent.innerHTML = `<pre class="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 text-sm leading-relaxed">${data.text}</pre>`;
                 currentDisplayLang = targetLang;
+                statusText.innerHTML = `显示语种：${targetLang === 'zh' ? '中文' : '英文'}`;
+            } else {
+                statusText.innerHTML = "翻译失败";
             }
         } catch (err) {
             statusText.innerHTML = "翻译失败";
@@ -234,6 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 页面加载时加载历史记录
+    // 页面加载时加载历史
     loadHistory();
 });
