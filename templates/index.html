@@ -10,15 +10,14 @@
     <style>
         body { font-family: 'Inter', 'Noto Sans SC', sans-serif; }
         .whitespace-pre-wrap { word-break: break-word; }
-        #result-content::-webkit-scrollbar, #history-list::-webkit-scrollbar { width: 4px; }
+        #result-content::-webkit-scrollbar, #history-list::-webkit-scrollbar { width: 5px; }
         #result-content::-webkit-scrollbar-thumb, #history-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .dark #result-content::-webkit-scrollbar-thumb, .dark #history-list::-webkit-scrollbar-thumb { background: #475569; }
-        .history-item { transition: all 0.2s; }
         .history-item:hover { background-color: #f8fafc; }
         .dark .history-item:hover { background-color: #1f2937; }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors">
 
     <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm border-b dark:border-gray-800 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -28,26 +27,29 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
-                <div>
+                <div class="flex flex-col">
                     <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Medical OCR</h1>
-                    <span class="text-[10px] text-gray-400 dark:text-gray-500 font-bold tracking-widest uppercase">Intelligent Analysis</span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">智能病例识别</span>
                 </div>
             </div>
-            <button id="theme-toggle" class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-yellow-400 hover:scale-110 transition-transform">
-                <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
-                <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-            </button>
+            <div class="flex items-center gap-3">
+                <button id="theme-toggle" class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-yellow-400 hover:scale-110 transition-transform">
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                </button>
+                <button id="output-lang-toggle" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-lg active:scale-95 transition-all">
+                    切换显示语言
+                </button>
+            </div>
         </div>
     </header>
 
     <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         <!-- 上传区 -->
-        <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-3xl shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[560px]">
-            <h2 class="text-lg font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-gray-100">
+        <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 flex flex-col h-[560px]">
+            <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
                 <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>导入病例图片
             </h2>
-            
             <div id="dropzone" class="flex-1 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl p-8 text-center cursor-pointer flex flex-col items-center justify-center group hover:border-blue-500 transition-all">
                 <input id="file-input" type="file" accept="image/*" class="hidden">
                 <div class="w-16 h-16 bg-blue-50 dark:bg-gray-700 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
@@ -55,54 +57,39 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                 </div>
-                <p class="text-gray-600 dark:text-gray-400 font-medium">点击、拖拽或粘贴图片</p>
-                <button id="select-file-btn" class="mt-6 px-8 py-3 bg-gray-900 dark:bg-blue-600 text-white rounded-2xl text-sm font-semibold shadow-md">浏览文件</button>
+                <p class="text-gray-600 dark:text-gray-400">点击、拖拽或粘贴图片</p>
+                <button id="select-file-btn" class="mt-6 px-8 py-3 bg-gray-900 dark:bg-blue-600 text-white rounded-2xl text-sm font-semibold">浏览文件</button>
             </div>
-
             <div id="preview-container" class="mt-6 hidden">
-                <img id="preview-image" class="w-full rounded-2xl border border-gray-100 dark:border-gray-700 max-h-40 object-contain bg-gray-100 dark:bg-gray-900">
+                <img id="preview-image" class="w-full rounded-2xl border max-h-40 object-contain">
             </div>
         </div>
 
         <!-- 识别结果区 -->
-        <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-3xl shadow-xl border dark:border-gray-700 p-8 flex flex-col h-[560px]">
+        <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 flex flex-col h-[560px]">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                <h2 class="text-lg font-bold flex items-center gap-2">
                     <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>提取分析结果
                 </h2>
-                <button id="copy-btn" class="px-5 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-xs font-semibold rounded-2xl transition-all">复制内容</button>
+                <button id="copy-btn" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-xl text-xs font-semibold">复制内容</button>
             </div>
-
-            <div id="status-bar" class="hidden p-3 bg-blue-50/70 dark:bg-blue-900/30 rounded-2xl mb-4 text-xs flex items-center gap-2">
-                <span id="status-text" class="text-blue-600 dark:text-blue-400"></span>
+            <div id="status-bar" class="hidden p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl mb-4 text-xs flex items-center gap-2">
+                <span id="status-text"></span>
             </div>
-
-            <div id="result-content" class="flex-1 bg-gray-50 dark:bg-gray-900 rounded-3xl p-6 overflow-y-auto text-sm leading-relaxed border border-gray-100 dark:border-gray-700">
-                <div class="h-full flex items-center justify-center text-center text-gray-400 dark:text-gray-500">
-                    <div>
-                        <p class="mb-2">请在左侧上传病例图片</p>
-                        <p class="text-xs">AI 将自动识别并保存</p>
-                    </div>
-                </div>
+            <div id="result-content" class="flex-1 bg-gray-50 dark:bg-gray-900 rounded-3xl p-6 overflow-y-auto text-sm">
+                <div class="h-full flex items-center justify-center text-gray-400">上传图片后这里显示结果</div>
             </div>
         </div>
 
-        <!-- 历史记录区（小而美） -->
-        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl shadow-xl border dark:border-gray-700 p-6 flex flex-col h-[560px]">
-            <h2 class="text-base font-bold mb-4 flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <span class="w-1 h-5 bg-purple-500 rounded"></span>历史记录
-            </h2>
+        <!-- 历史记录区（紧凑） -->
+        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-6 flex flex-col h-[560px]">
+            <h2 class="text-base font-bold mb-4">历史记录</h2>
             <div id="history-list" class="flex-1 overflow-y-auto space-y-3 text-xs">
-                <!-- JS 动态填充 -->
+                <!-- JS 填充 -->
             </div>
         </div>
     </main>
 
-    <footer class="py-6 text-center text-gray-400 dark:text-gray-500 text-xs mt-auto">
-        © 2026 AI Medical OCR Assistant
-    </footer>
-
-    <!-- 关键修复：正确的静态文件路径 -->
     <script src="/static/js/script.js"></script>
 </body>
 </html>
